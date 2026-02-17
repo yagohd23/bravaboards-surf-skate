@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_seo_components_seos",
+  "info": {
+    "displayName": "SEO",
+    "icon": "cursor"
+  },
+  "options": {},
+  "attributes": {
+    "meta_title": {
+      "type": "string",
+      "required": true
+    },
+    "meta_description": {
+      "type": "blocks",
+      "required": true
+    }
+  },
+  "config": {}
+}

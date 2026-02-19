@@ -1,0 +1,186 @@
+---
+/**
+ * Header — BravaBoards
+ * Menú dinámico desde Strapi: logo, navegación con dropdowns, hamburger móvil.
+ * Sin texto hardcodeado.
+ */
+import type { GlobalData } from '../types/strapi';
+import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
+
+interface Props {
+  global: GlobalData | null;
+}
+
+const { global: g } = Astro.props;
+
+const logoUrl = getStrapiMediaUrl(g?.logo);
+const logoAlt = getStrapiMediaAlt(g?.logo, g?.site_name ?? '');
+const navItems = g?.nav_menu ?? [];
+---
+
+<header class="sticky top-0 z-50 bg-warm-white border-b border-sand-dark">
+  <div class="container">
+    <nav
+      class="flex items-center justify-between h-16"
+      aria-label={g?.site_name ?? ''}
+    >
+      <!-- Logo -->
+      <a href="/" class="flex-shrink-0 flex items-center gap-2">
+        {logoUrl
+          ? <img
+              src={logoUrl}
+              alt={logoAlt}
+              width="140"
+              height="40"
+              class="h-9 w-auto object-contain"
+              loading="eager"
+            />
+          : <span class="text-xl font-bold tracking-tight text-ocean">
+              {g?.site_name}
+            </span>
+        }
+      </a>
+
+      <!-- Navegación desktop -->
+      {navItems.length > 0 && (
+        <ul class="hidden md:flex items-center gap-1 list-none m-0 p-0" role="list">
+          {navItems.map((item) => (
+            <li class="relative group" role="listitem">
+              {item.children && item.children.length > 0
+                ? <>
+                    <button
+                      class="flex items-center gap-1 px-3 py-2 text-sm font-medium text-navy hover:text-ocean transition-colors rounded-md"
+                      aria-haspopup="true"
+                      aria-expanded="false"
+                      data-dropdown-trigger
+                    >
+                      {item.label}
+                      <svg
+                        class="w-3.5 h-3.5 transition-transform group-hover:rotate-180"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                    <!-- Dropdown -->
+                    <ul
+                      class="absolute top-full left-0 mt-1 w-48 bg-warm-white border border-sand-dark rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 list-none p-1"
+                      role="menu"
+                    >
+                      {item.children.map((child) => (
+                        <li role="none">
+                          <a
+                            href={child.href}
+                            class="block px-3 py-2 text-sm text-navy hover:text-ocean hover:bg-sand rounded-md transition-colors"
+                            role="menuitem"
+                          >
+                            {child.label}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                : <a
+                    href={item.href}
+                    class="block px-3 py-2 text-sm font-medium text-navy hover:text-ocean transition-colors rounded-md"
+                  >
+                    {item.label}
+                  </a>
+              }
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <!-- Hamburger móvil -->
+      <button
+        id="mobile-menu-toggle"
+        class="md:hidden flex items-center justify-center w-10 h-10 rounded-md text-navy hover:text-ocean hover:bg-sand transition-colors"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
+        aria-label={g?.ui_labels?.mobile_menu_label ?? ''}
+      >
+        <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" aria-hidden="true" id="icon-open">
+          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <svg class="w-5 h-5 hidden" viewBox="0 0 20 20" fill="none" aria-hidden="true" id="icon-close">
+          <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Menú móvil -->
+  {navItems.length > 0 && (
+    <div
+      id="mobile-menu"
+      class="md:hidden hidden border-t border-sand-dark bg-warm-white"
+    >
+      <ul class="container py-3 flex flex-col gap-0.5 list-none" role="list">
+        {navItems.map((item) => (
+          <li role="listitem">
+            <a
+              href={item.href}
+              class="block px-3 py-2.5 text-sm font-medium text-navy hover:text-ocean hover:bg-sand rounded-md transition-colors"
+            >
+              {item.label}
+            </a>
+            {item.children && item.children.length > 0 && (
+              <ul class="pl-4 mt-0.5 flex flex-col gap-0.5 list-none">
+                {item.children.map((child) => (
+                  <li>
+                    <a
+                      href={child.href}
+                      class="block px-3 py-2 text-sm text-stone hover:text-ocean hover:bg-sand rounded-md transition-colors"
+                    >
+                      {child.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</header>
+
+<script>
+  // ── Hamburger toggle ──
+  const toggle = document.getElementById('mobile-menu-toggle');
+  const menu   = document.getElementById('mobile-menu');
+  const iconOpen  = document.getElementById('icon-open');
+  const iconClose = document.getElementById('icon-close');
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!isOpen));
+    menu?.classList.toggle('hidden');
+    iconOpen?.classList.toggle('hidden');
+    iconClose?.classList.toggle('hidden');
+  });
+
+  // ── Dropdown accesibilidad por teclado (desktop) ──
+  document.querySelectorAll<HTMLButtonElement>('[data-dropdown-trigger]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      // Cierra todos los demás
+      document.querySelectorAll<HTMLButtonElement>('[data-dropdown-trigger]').forEach((b) => {
+        if (b !== btn) b.setAttribute('aria-expanded', 'false');
+      });
+      btn.setAttribute('aria-expanded', String(!expanded));
+    });
+  });
+
+  // Cierra dropdowns al hacer click fuera
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('[data-dropdown-trigger]')) {
+      document.querySelectorAll<HTMLButtonElement>('[data-dropdown-trigger]').forEach((btn) => {
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+</script>

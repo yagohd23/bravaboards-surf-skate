@@ -1,1 +1,58 @@
 @import "tailwindcss";
+
+@theme {
+  /* ── BravaBoards · Paleta Mediterránea ── */
+  --color-ocean:       #1a3a5c;
+  --color-ocean-light: #2d5a8e;
+  --color-navy:        #0d1f33;
+  --color-sand:        #f5f0e8;
+  --color-sand-dark:   #e5ddd0;
+  --color-coral:       #c8614a;
+  --color-stone:       #7a7268;
+  --color-stone-light: #a8a09a;
+  --color-warm-white:  #fafaf8;
+
+  /* ── Tipografía ── */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* ── Base ── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-warm-white);
+  color: var(--color-navy);
+  font-family: var(--font-sans);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ocean-light);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .container { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+@media (min-width: 1024px) {
+  .container { padding-left: 2rem; padding-right: 2rem; }
+}

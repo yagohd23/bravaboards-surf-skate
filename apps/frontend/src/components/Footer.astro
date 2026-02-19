@@ -1,0 +1,144 @@
+---
+/**
+ * Footer — BravaBoards
+ * Footer dinámico desde Strapi: logo, menú, contacto, legales, copyright.
+ * Sin texto hardcodeado.
+ */
+import type { GlobalData } from '../types/strapi';
+import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
+
+interface Props {
+  global: GlobalData | null;
+}
+
+const { global: g } = Astro.props;
+
+const logoUrl = getStrapiMediaUrl(g?.logo);
+const logoAlt = getStrapiMediaAlt(g?.logo, g?.site_name ?? '');
+const footer  = g?.footer;
+const menu    = footer?.menu    ?? [];
+const contact = footer?.contact ?? {};
+const legal   = footer?.legal   ?? { links: [] };
+const socials = contact.socials ?? [];
+---
+
+<footer class="bg-navy text-stone-light">
+  <!-- Bloque principal -->
+  <div class="container py-12 lg:py-16">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+
+      <!-- Logo + descripción de sitio -->
+      <div class="lg:col-span-1">
+        <a href="/" class="inline-block mb-4">
+          {logoUrl
+            ? <img
+                src={logoUrl}
+                alt={logoAlt}
+                width="120"
+                height="36"
+                class="h-9 w-auto object-contain brightness-0 invert"
+                loading="lazy"
+              />
+            : <span class="text-lg font-bold text-warm-white">{g?.site_name}</span>
+          }
+        </a>
+
+        <!-- Redes sociales -->
+        {socials.length > 0 && (
+          <nav aria-label={g?.site_name ?? ''}>
+            <ul class="flex gap-3 mt-4 list-none p-0 m-0">
+              {socials.map((s) => (
+                <li>
+                  <a
+                    href={s.url}
+                    aria-label={s.label}
+                    class="flex items-center justify-center w-9 h-9 rounded-full border border-stone/30 text-stone-light hover:text-warm-white hover:border-warm-white transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <!-- Icono SVG genérico para redes; el label da el contexto -->
+                    <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                      <path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+      </div>
+
+      <!-- Menú de navegación footer -->
+      {menu.length > 0 && (
+        <nav aria-label={g?.site_name ?? ''} class="lg:col-span-1">
+          <ul class="flex flex-col gap-2 list-none p-0 m-0">
+            {menu.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class="text-sm text-stone-light hover:text-warm-white transition-colors"
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+      <!-- Contacto -->
+      {(contact.address || contact.email || contact.phone) && (
+        <address class="not-italic lg:col-span-1 flex flex-col gap-2">
+          {contact.address && (
+            <p class="text-sm">{contact.address}</p>
+          )}
+          {contact.email && (
+            <a
+              href={`mailto:${contact.email}`}
+              class="text-sm text-stone-light hover:text-warm-white transition-colors"
+            >
+              {contact.email}
+            </a>
+          )}
+          {contact.phone && (
+            <a
+              href={`tel:${contact.phone.replace(/\s/g, '')}`}
+              class="text-sm text-stone-light hover:text-warm-white transition-colors"
+            >
+              {contact.phone}
+            </a>
+          )}
+        </address>
+      )}
+
+      <!-- Legales -->
+      {legal.links && legal.links.length > 0 && (
+        <nav aria-label={g?.site_name ?? ''} class="lg:col-span-1">
+          <ul class="flex flex-col gap-2 list-none p-0 m-0">
+            {legal.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="text-xs text-stone-light hover:text-warm-white transition-colors"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+    </div>
+  </div>
+
+  <!-- Copyright -->
+  {footer?.copyright && (
+    <div class="border-t border-stone/20">
+      <div class="container py-4">
+        <p class="text-xs text-stone/60 text-center">{footer.copyright}</p>
+      </div>
+    </div>
+  )}
+</footer>

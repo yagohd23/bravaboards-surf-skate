@@ -1,0 +1,106 @@
+---
+/**
+ * ProductCard — BravaBoards
+ * Tarjeta de producto. Todos los textos vienen de Strapi.
+ */
+import type { Product, UILabels } from '../types/strapi';
+import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
+
+interface Props {
+  product: Product;
+  ui: UILabels;
+}
+
+const { product, ui } = Astro.props;
+
+const imageUrl = getStrapiMediaUrl(product.featured_image);
+const imageAlt = getStrapiMediaAlt(product.featured_image, product.name);
+const isAvailable = product.actual_status === 'Disponible' || product.actual_status == null;
+
+// Formateador de precio en euros (locale español)
+const priceFormatted = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
+}).format(product.price);
+
+const statusLabel = isAvailable
+  ? (ui.status_available ?? '')
+  : (ui.status_sold_out ?? '');
+---
+
+<article
+  class="group bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-md hover:border-ocean-light transition-all duration-200 flex flex-col"
+  data-product
+  data-searchable={`${product.name} ${product.category?.name ?? ''} ${product.brand?.name ?? ''}`.toLowerCase()}
+  data-category={product.category?.slug ?? ''}
+>
+  <!-- Imagen -->
+  <a
+    href={`/productos/${product.slug}`}
+    class="block overflow-hidden aspect-square bg-sand"
+    tabindex="-1"
+    aria-hidden="true"
+  >
+    {imageUrl
+      ? <img
+          src={imageUrl}
+          alt={imageAlt}
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          loading="lazy"
+          decoding="async"
+        />
+      : <div class="w-full h-full flex items-center justify-center bg-sand-dark">
+          <svg class="w-12 h-12 text-stone-light" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <rect x="6" y="6" width="36" height="36" rx="4" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="18" cy="18" r="4" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M6 32l10-10 8 8 6-6 12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+    }
+  </a>
+
+  <!-- Info -->
+  <div class="flex flex-col flex-1 p-4 gap-2">
+    <!-- Categoría / Marca -->
+    {(product.category?.name || product.brand?.name) && (
+      <p class="text-xs font-medium text-stone-light uppercase tracking-wider">
+        {[product.category?.name, product.brand?.name].filter(Boolean).join(' · ')}
+      </p>
+    )}
+
+    <!-- Nombre -->
+    <h3 class="text-sm font-semibold text-navy leading-snug">
+      <a
+        href={`/productos/${product.slug}`}
+        class="hover:text-ocean transition-colors"
+      >
+        {product.name}
+      </a>
+    </h3>
+
+    <!-- Precio + Estado -->
+    <div class="mt-auto flex items-center justify-between gap-2 pt-2">
+      <span class="text-base font-bold text-ocean">{priceFormatted}</span>
+
+      {statusLabel && (
+        <span class={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          isAvailable
+            ? 'bg-ocean/10 text-ocean'
+            : 'bg-sand-dark text-stone'
+        }`}>
+          {statusLabel}
+        </span>
+      )}
+    </div>
+
+    <!-- CTA -->
+    {ui.view_product && (
+      <a
+        href={`/productos/${product.slug}`}
+        class="mt-2 inline-flex items-center justify-center w-full px-4 py-2.5 bg-ocean text-warm-white text-sm font-medium rounded-md hover:bg-ocean-light transition-colors duration-200"
+      >
+        {ui.view_product}
+      </a>
+    )}
+  </div>
+</article>

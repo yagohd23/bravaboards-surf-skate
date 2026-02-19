@@ -1,24 +1,85 @@
 ---
+/**
+ * BaseLayout — BravaBoards
+ * Layout base con SEO 100% dinámico desde Strapi.
+ * No hay texto hardcodeado visible; solo estructura técnica.
+ */
 import '../styles/global.css';
+import type { StrapiMedia } from '../types/strapi';
 
-interface Props {
-	title?: string;
+interface SEOProps {
+  title?: string | null;
+  description?: string | null;
+  image?: StrapiMedia | null;
+  canonical?: string | null;
+  robots?: string | null;
 }
 
-const { title = 'Astro' } = Astro.props;
+interface Props {
+  seo?: SEOProps;
+  lang?: string;
+  faviconUrl?: string | null;
+}
+
+const { seo, lang = 'es', faviconUrl } = Astro.props;
+
+const STRAPI_URL = import.meta.env.STRAPI_URL ?? 'http://localhost:1337';
+
+// Canonical: valor del CMS si existe, si no URL actual de la petición
+const canonicalUrl = seo?.canonical ?? Astro.url.href;
+
+// OG image: construye URL absoluta desde el campo media de Strapi 5
+const ogImageUrl = seo?.image?.url
+  ? seo.image.url.startsWith('http')
+    ? seo.image.url
+    : `${STRAPI_URL}${seo.image.url}`
+  : null;
+
+const ogImageAlt = seo?.image?.alternativeText ?? seo?.title ?? '';
 ---
 
 <!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-	</head>
-	<body>
-		<slot />
-	</body>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Favicon: dinámico desde Strapi si existe, si no estático del repo -->
+    {faviconUrl
+      ? <link rel="icon" href={faviconUrl} />
+      : <>
+          <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+          <link rel="icon" href="/favicon.ico" />
+        </>
+    }
+
+    <!-- SEO principal -->
+    {seo?.title       && <title>{seo.title}</title>}
+    {seo?.description && <meta name="description" content={seo.description} />}
+    {seo?.robots      && <meta name="robots" content={seo.robots} />}
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph -->
+    {seo?.title       && <meta property="og:title"       content={seo.title} />}
+    {seo?.description && <meta property="og:description" content={seo.description} />}
+    <meta property="og:url"  content={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    {ogImageUrl && (
+      <>
+        <meta property="og:image"     content={ogImageUrl} />
+        <meta property="og:image:alt" content={ogImageAlt} />
+      </>
+    )}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    {seo?.title       && <meta name="twitter:title"       content={seo.title} />}
+    {seo?.description && <meta name="twitter:description" content={seo.description} />}
+    {ogImageUrl       && <meta name="twitter:image"       content={ogImageUrl} />}
+  </head>
+
+  <body>
+    <slot />
+  </body>
 </html>

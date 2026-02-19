@@ -530,6 +530,80 @@ export interface ApiDisciplineDiscipline extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiGlobalGlobal extends Struct.SingleTypeSchema {
+  collectionName: 'globals';
+  info: {
+    displayName: 'Global';
+    pluralName: 'globals';
+    singularName: 'global';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    favicon: Schema.Attribute.Media<'images'>;
+    footer: Schema.Attribute.JSON;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::global.global'
+    > &
+      Schema.Attribute.Private;
+    logo: Schema.Attribute.Media<'images'>;
+    nav_menu: Schema.Attribute.JSON;
+    publishedAt: Schema.Attribute.DateTime;
+    seo_description: Schema.Attribute.Text;
+    seo_image: Schema.Attribute.Media<'images'>;
+    seo_robots: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'index, follow'>;
+    seo_title: Schema.Attribute.String;
+    site_name: Schema.Attribute.String & Schema.Attribute.Required;
+    ui_labels: Schema.Attribute.JSON;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiHomeHome extends Struct.SingleTypeSchema {
+  collectionName: 'homes';
+  info: {
+    displayName: 'Home';
+    pluralName: 'homes';
+    singularName: 'home';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    featured_sections: Schema.Attribute.JSON;
+    hero_background: Schema.Attribute.Media<'images'>;
+    hero_ctas: Schema.Attribute.JSON;
+    hero_subtitle: Schema.Attribute.Text;
+    hero_title: Schema.Attribute.String & Schema.Attribute.Required;
+    hero_video_url: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::home.home'> &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    seo_canonical: Schema.Attribute.String;
+    seo_description: Schema.Attribute.Text;
+    seo_image: Schema.Attribute.Media<'images'>;
+    seo_robots: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'index, follow'>;
+    seo_title: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiProductProduct extends Struct.CollectionTypeSchema {
   collectionName: 'products';
   info: {
@@ -542,6 +616,8 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
   };
   attributes: {
     actual_status: Schema.Attribute.Enumeration<['Disponible', 'Agotado']>;
+    brand: Schema.Attribute.Relation<'manyToOne', 'api::brand.brand'>;
+    category: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1087,6 +1163,8 @@ declare module '@strapi/strapi' {
       'api::brand.brand': ApiBrandBrand;
       'api::category.category': ApiCategoryCategory;
       'api::discipline.discipline': ApiDisciplineDiscipline;
+      'api::global.global': ApiGlobalGlobal;
+      'api::home.home': ApiHomeHome;
       'api::product.product': ApiProductProduct;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

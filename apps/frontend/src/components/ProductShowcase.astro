@@ -1,0 +1,161 @@
+---
+/**
+ * ProductShowcase — BravaBoards
+ * Sección de productos con buscador y filtro por categoría.
+ * Los productos se cargan server-side; la búsqueda/filtro es client-side (vanilla JS).
+ * Todos los textos vienen de Strapi.
+ */
+import type { Product, FeaturedSection, UILabels, Category } from '../types/strapi';
+import ProductCard from './ProductCard.astro';
+
+interface Props {
+  section: FeaturedSection;
+  products: Product[];
+  categories: Category[];
+  ui: UILabels;
+}
+
+const { section, products, categories, ui } = Astro.props;
+
+// ID único para escoping del JS (basado en el título de la sección)
+const sectionId = `showcase-${section.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+const searchPlaceholder = section.search_placeholder ?? ui.search_placeholder ?? '';
+const filterLabel       = section.filter_label       ?? ui.filter_label       ?? '';
+const emptyLabel        = ui.empty_results ?? '';
+
+// Categorías disponibles en este conjunto de productos (para filtro)
+const availableCategories = categories.filter((cat) =>
+  products.some((p) => p.category?.slug === cat.slug)
+);
+---
+
+<section class="py-16 sm:py-20" id={sectionId}>
+  <div class="container">
+    <!-- Encabezado de sección -->
+    <div class="mb-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-navy">{section.title}</h2>
+      {section.description && (
+        <p class="mt-2 text-stone max-w-2xl">{section.description}</p>
+      )}
+    </div>
+
+    <!-- Controles: búsqueda + filtro -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-8">
+      <!-- Buscador -->
+      <div class="relative flex-1">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-light" aria-hidden="true">
+          <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none">
+            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M10 10l3.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <input
+          type="search"
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          class="w-full pl-9 pr-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors"
+          data-search
+          data-target={sectionId}
+        />
+      </div>
+
+      <!-- Filtro por categoría (solo si hay >1 categoría en esta sección) -->
+      {availableCategories.length > 1 && filterLabel && (
+        <div class="relative">
+          <select
+            aria-label={filterLabel}
+            class="appearance-none pl-4 pr-9 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors cursor-pointer"
+            data-filter
+            data-target={sectionId}
+          >
+            <option value="">{filterLabel}</option>
+            {availableCategories.map((cat) => (
+              <option value={cat.slug}>{cat.name}</option>
+            ))}
+          </select>
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-light" aria-hidden="true">
+            <svg class="w-4 h-4" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </div>
+      )}
+    </div>
+
+    <!-- Grid de productos -->
+    <div
+      id={`${sectionId}-grid`}
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+    >
+      {products.map((product) => (
+        <ProductCard product={product} ui={ui} />
+      ))}
+    </div>
+
+    <!-- Estado vacío -->
+    <div
+      id={`${sectionId}-empty`}
+      class="hidden text-center py-16"
+      aria-live="polite"
+    >
+      <p class="text-stone">{emptyLabel}</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  /**
+   * Búsqueda y filtro client-side para ProductShowcase.
+   * Normaliza acentos y mayúsculas para búsqueda en español.
+   */
+  function normalize(str: string): string {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function runFilter(sectionId: string): void {
+    const grid  = document.getElementById(`${sectionId}-grid`);
+    const empty = document.getElementById(`${sectionId}-empty`);
+    if (!grid) return;
+
+    const searchInput = document.querySelector<HTMLInputElement>(
+      `[data-search][data-target="${sectionId}"]`
+    );
+    const filterSelect = document.querySelector<HTMLSelectElement>(
+      `[data-filter][data-target="${sectionId}"]`
+    );
+
+    const query      = normalize(searchInput?.value ?? '');
+    const filterSlug = filterSelect?.value ?? '';
+
+    let visible = 0;
+
+    grid.querySelectorAll<HTMLElement>('[data-product]').forEach((card) => {
+      const searchable = normalize(card.dataset.searchable ?? '');
+      const catSlug    = card.dataset.category ?? '';
+
+      const matchesSearch = !query || searchable.includes(query);
+      const matchesFilter = !filterSlug || catSlug === filterSlug;
+
+      const show = matchesSearch && matchesFilter;
+      card.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+
+    empty?.classList.toggle('hidden', visible > 0);
+  }
+
+  // Engancha eventos a todos los buscadores y filtros de la página
+  document.querySelectorAll<HTMLInputElement>('[data-search]').forEach((input) => {
+    const target = input.dataset.target ?? '';
+    input.addEventListener('input', () => runFilter(target));
+  });
+
+  document.querySelectorAll<HTMLSelectElement>('[data-filter]').forEach((select) => {
+    const target = select.dataset.target ?? '';
+    select.addEventListener('change', () => runFilter(target));
+  });
+</script>

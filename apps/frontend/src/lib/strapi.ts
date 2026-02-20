@@ -93,6 +93,37 @@ export async function getCategories() {
   }
 }
 
+export async function getSubcategories() {
+  try {
+    const res = await fetchFromStrapi<{ data: unknown[] }>(
+      'subcategories',
+      { populate: 'category', sort: 'order:asc' }
+    );
+    return res.data ?? [];
+  } catch (err) {
+    console.error('[Strapi] getSubcategories:', err);
+    return [];
+  }
+}
+
+export async function getFeaturedProducts() {
+  try {
+    const res = await fetchFromStrapi<{ data: unknown[] }>(
+      'products',
+      {
+        'filters[featured][$eq]': 'true',
+        'populate': '*',
+        'pagination[limit]': '200',
+        'sort': 'createdAt:asc',
+      }
+    );
+    return res.data ?? [];
+  } catch (err) {
+    console.error('[Strapi] getFeaturedProducts:', err);
+    return [];
+  }
+}
+
 export async function getBrands() {
   try {
     const res = await fetchFromStrapi<{ data: unknown[] }>(

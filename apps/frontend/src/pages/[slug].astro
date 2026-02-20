@@ -1,0 +1,234 @@
+---
+/**
+ * Página de categoría — BravaBoards
+ * Ruta: /[slug]  (ej: /surf, /skate, /ropa, /surf-skate)
+ * Productos agrupados por subcategoría, cada sección con id=slug para hash navigation.
+ * Buscador por nombre client-side (oculta secciones vacías automáticamente).
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import ProductCard from '../components/ProductCard.astro';
+import {
+  getGlobalData,
+  getCategories,
+  getProducts,
+  getSubcategories,
+  getStrapiMediaUrl,
+  getStrapiMediaAlt,
+} from '../lib/strapi';
+import type { GlobalData, Category, Product, Subcategory, UILabels } from '../types/strapi';
+
+// ── Rutas estáticas: una página por categoría ─────────────────────────────────
+export async function getStaticPaths() {
+  const rawCats = await getCategories();
+  const cats = rawCats as Category[];
+  return cats
+    .filter(cat => cat.slug)
+    .map(cat => ({
+      params: { slug: cat.slug },
+      props:  { category: cat },
+    }));
+}
+
+const { category } = Astro.props as { category: Category };
+const { slug } = Astro.params;
+
+// ── Fetch paralelo ─────────────────────────────────────────────────────────────
+const [rawGlobal, rawProducts, rawSubcats] = await Promise.all([
+  getGlobalData(),
+  getProducts({
+    'filters[category][slug][$eq]': slug!,
+    'pagination[limit]': '100',
+    'sort': 'name:asc',
+  }),
+  getSubcategories(),
+]);
+
+const global        = rawGlobal   as GlobalData   | null;
+const products      = rawProducts as Product[]    ?? [];
+const subcategories = (rawSubcats as Subcategory[])
+  .filter(sub => sub.category?.slug === slug);
+
+const ui: UILabels = global?.ui_labels ?? {};
+
+// ── Agrupar productos por subcategoría ────────────────────────────────────────
+const productsBySubcategory = new Map<string, Product[]>();
+for (const sub of subcategories) {
+  const subProds = products.filter(p => p.subcategory?.slug === sub.slug);
+  if (subProds.length > 0) productsBySubcategory.set(sub.slug, subProds);
+}
+const uncategorized = products.filter(p => !p.subcategory?.slug);
+
+// ── SEO ───────────────────────────────────────────────────────────────────────
+const catImgUrl = getStrapiMediaUrl(category.images);
+const catImgAlt = getStrapiMediaAlt(category.images, category.name);
+
+const seo = {
+  title:       `${category.name} — ${global?.site_name ?? ''}`,
+  description: global?.seo_description ?? null,
+  image:       category.images ?? global?.seo_image ?? null,
+  canonical:   null,
+  robots:      global?.seo_robots ?? 'index, follow',
+};
+
+const faviconUrl = getStrapiMediaUrl(global?.favicon);
+
+const sectionId         = `cat-${slug}`;
+const searchPlaceholder = ui.search_placeholder ?? '';
+const emptyLabel        = ui.empty_results       ?? '';
+---
+
+<BaseLayout seo={seo} faviconUrl={faviconUrl}>
+  <Header global={global} />
+
+  <main id="main-content">
+
+    <!-- ── Cabecera de categoría ──────────────────────────────────────────── -->
+    <div class="relative overflow-hidden min-h-[220px] flex items-end bg-navy">
+      {catImgUrl && (
+        <img
+          src={catImgUrl}
+          alt={catImgAlt}
+          class="absolute inset-0 w-full h-full object-cover object-center"
+          loading="eager"
+          fetchpriority="high"
+        />
+      )}
+      <div
+        class="absolute inset-0"
+        style="background: linear-gradient(to top, rgba(13,31,51,0.92) 0%, rgba(13,31,51,0.5) 60%, rgba(13,31,51,0.2) 100%);"
+        aria-hidden="true"
+      ></div>
+      <div class="relative container py-10">
+        <h1 class="text-3xl sm:text-4xl font-bold text-warm-white tracking-tight">
+          {category.name}
+        </h1>
+      </div>
+    </div>
+
+    <!-- ── Buscador + secciones por subcategoría ──────────────────────────── -->
+    <section class="py-10" id={sectionId}>
+      <div class="container">
+
+        <!-- Buscador por nombre -->
+        <div class="relative max-w-md mb-10">
+          <span
+            class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-light"
+            aria-hidden="true"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none">
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M10 10l3.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input
+            type="search"
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            class="w-full pl-9 pr-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors"
+            data-search
+            data-target={sectionId}
+          />
+        </div>
+
+        <!-- Secciones por subcategoría (id = slug de subcategoría para hash nav) -->
+        <div class="space-y-14">
+          {subcategories.map(sub => {
+            const subProds = productsBySubcategory.get(sub.slug);
+            if (!subProds || subProds.length === 0) return null;
+            return (
+              <div id={sub.slug} data-subsection>
+                <!-- Cabecera de subcategoría -->
+                <div class="flex items-center gap-3 mb-6">
+                  <h2 class="text-base font-semibold text-stone uppercase tracking-widest whitespace-nowrap">
+                    {sub.name}
+                  </h2>
+                  <div class="flex-1 h-px bg-sand-dark"></div>
+                </div>
+                <!-- Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {subProds.map(product => (
+                    <ProductCard product={product} ui={ui} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <!-- Productos sin subcategoría asignada -->
+          {uncategorized.length > 0 && (
+            <div data-subsection>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {uncategorized.map(product => (
+                  <ProductCard product={product} ui={ui} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <!-- Estado vacío (solo visible si el buscador no encuentra nada) -->
+        <div
+          id={`${sectionId}-empty`}
+          class="hidden text-center py-16"
+          aria-live="polite"
+        >
+          <p class="text-stone">{emptyLabel}</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <Footer global={global} />
+</BaseLayout>
+
+<script>
+  /**
+   * Búsqueda por nombre client-side.
+   * Filtra tarjetas individualmente y oculta secciones de subcategoría vacías.
+   */
+  function normalize(str: string): string {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function runFilter(sectionId: string): void {
+    const section = document.getElementById(sectionId);
+    const empty   = document.getElementById(`${sectionId}-empty`);
+    if (!section) return;
+
+    const searchInput = document.querySelector<HTMLInputElement>(
+      `[data-search][data-target="${sectionId}"]`
+    );
+    const query = normalize(searchInput?.value ?? '');
+
+    let totalVisible = 0;
+
+    // 1. Mostrar/ocultar tarjetas individuales
+    section.querySelectorAll<HTMLElement>('[data-product]').forEach((card) => {
+      const searchable = normalize(card.dataset.searchable ?? '');
+      const show = !query || searchable.includes(query);
+      card.classList.toggle('hidden', !show);
+      if (show) totalVisible++;
+    });
+
+    // 2. Ocultar subsecciones que queden sin tarjetas visibles
+    section.querySelectorAll<HTMLElement>('[data-subsection]').forEach((sub) => {
+      const hasVisible = sub.querySelector('[data-product]:not(.hidden)') !== null;
+      sub.classList.toggle('hidden', !hasVisible);
+    });
+
+    // 3. Estado vacío global
+    empty?.classList.toggle('hidden', totalVisible > 0);
+  }
+
+  document.querySelectorAll<HTMLInputElement>('[data-search]').forEach((input) => {
+    const target = input.dataset.target ?? '';
+    input.addEventListener('input', () => runFilter(target));
+  });
+</script>

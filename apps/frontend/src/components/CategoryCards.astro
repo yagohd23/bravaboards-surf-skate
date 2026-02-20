@@ -1,0 +1,66 @@
+---
+/**
+ * CategoryCards — BravaBoards
+ * 4 tarjetas de categoría en el home. Cada una lleva a /[slug].
+ * Imagen de fondo desde Strapi. Textos desde ui_labels.
+ */
+import type { Category, UILabels } from '../types/strapi';
+import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
+
+interface Props {
+  categories: Category[];
+  ui: UILabels;
+}
+
+const { categories, ui } = Astro.props;
+---
+
+{categories.length > 0 && (
+  <section class="py-16 bg-warm-white">
+    <div class="container">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {categories.map(cat => {
+          const imgUrl = getStrapiMediaUrl(cat.images);
+          const imgAlt = getStrapiMediaAlt(cat.images, cat.name);
+          return (
+            <a
+              href={`/${cat.slug}`}
+              class="group relative flex aspect-[3/4] rounded-2xl overflow-hidden bg-navy shadow-md hover:shadow-xl transition-shadow duration-300"
+              aria-label={cat.name}
+            >
+              {imgUrl
+                ? <img
+                    src={imgUrl}
+                    alt={imgAlt}
+                    class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                : <div class="absolute inset-0 bg-gradient-to-br from-ocean to-navy"></div>
+              }
+
+              <!-- Overlay -->
+              <div
+                class="absolute inset-0"
+                style="background: linear-gradient(to top, rgba(13,31,51,0.88) 0%, rgba(13,31,51,0.35) 55%, transparent 100%);"
+                aria-hidden="true"
+              ></div>
+
+              <!-- Texto -->
+              <div class="relative mt-auto p-5">
+                <h3 class="text-warm-white text-xl font-bold tracking-tight leading-snug">
+                  {cat.name}
+                </h3>
+                {ui.view_all && (
+                  <span class="text-stone-light text-sm group-hover:text-warm-white transition-colors duration-200">
+                    {ui.view_all} →
+                  </span>
+                )}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+)}

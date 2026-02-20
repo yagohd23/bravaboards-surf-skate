@@ -6,68 +6,26 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Hero from '../components/Hero.astro';
-import ProductShowcase from '../components/ProductShowcase.astro';
+import CategoryCards from '../components/CategoryCards.astro';
 import Footer from '../components/Footer.astro';
 import {
   getGlobalData,
   getHomeData,
-  getProducts,
   getCategories,
   getStrapiMediaUrl,
 } from '../lib/strapi';
-import type { GlobalData, HomeData, Product, Category, FeaturedSection } from '../types/strapi';
+import type { GlobalData, HomeData, Category } from '../types/strapi';
 
-// ── Fetch paralelo de datos base ───────────────────────────────────────────────
+// ── Fetch paralelo de todos los datos ─────────────────────────────────────────
 const [rawGlobal, rawHome, rawCategories] = await Promise.all([
   getGlobalData(),
   getHomeData(),
   getCategories(),
 ]);
 
-const global   = rawGlobal   as GlobalData   | null;
-const home     = rawHome     as HomeData     | null;
+const global     = rawGlobal     as GlobalData | null;
+const home       = rawHome       as HomeData   | null;
 const categories = rawCategories as Category[] ?? [];
-
-// ── Featured sections: fetch de productos por sección ─────────────────────────
-const featuredSections: FeaturedSection[] = home?.featured_sections ?? [];
-
-/**
- * Para cada sección, construye la query de productos según su config.
- * Si una sección no tiene category_slug ni brand_slug, trae los más recientes.
- */
-async function fetchSectionProducts(section: FeaturedSection): Promise<Product[]> {
-  const query: Record<string, string> = {
-    'pagination[limit]': String(section.limit ?? 8),
-    'sort': section.sort ?? 'createdAt:desc',
-    'populate': '*',
-  };
-
-  if (section.category_slug) {
-    query['filters[category][slug][$eq]'] = section.category_slug;
-  }
-
-  if (section.brand_slug) {
-    query['filters[brand][slug][$eq]'] = section.brand_slug;
-  }
-
-  const products = await getProducts(query);
-  return products as Product[];
-}
-
-// Fetch de productos para todas las secciones en paralelo
-const sectionProducts: Product[][] = featuredSections.length > 0
-  ? await Promise.all(featuredSections.map(fetchSectionProducts))
-  : [];
-
-// Fallback: si no hay secciones configuradas, muestra los últimos productos
-let fallbackProducts: Product[] = [];
-if (featuredSections.length === 0) {
-  fallbackProducts = (await getProducts({
-    'pagination[limit]': '8',
-    'sort': 'createdAt:desc',
-    'populate': '*',
-  })) as Product[];
-}
 
 // ── SEO ───────────────────────────────────────────────────────────────────────
 const ui = global?.ui_labels ?? {};
@@ -80,12 +38,10 @@ const seo = {
   robots:      home?.seo_robots      ?? global?.seo_robots      ?? 'index, follow',
 };
 
-// Favicon
 const faviconUrl = getStrapiMediaUrl(global?.favicon);
 ---
 
 <BaseLayout seo={seo} faviconUrl={faviconUrl}>
-  <!-- Header dinámico -->
   <Header global={global} />
 
   <main id="main-content">
@@ -95,37 +51,14 @@ const faviconUrl = getStrapiMediaUrl(global?.favicon);
         title={home.hero_title}
         subtitle={home.hero_subtitle}
         background={home.hero_background}
-        videoUrl={home.hero_video_url}
+        videoUrl={getStrapiMediaUrl(home.hero_video)}
         ctas={home.hero_ctas}
       />
     )}
 
-    <!-- Secciones de productos desde Strapi -->
-    {featuredSections.length > 0
-      ? featuredSections.map((section, i) => (
-          <ProductShowcase
-            section={section}
-            products={sectionProducts[i] ?? []}
-            categories={categories}
-            ui={ui}
-          />
-        ))
-      : fallbackProducts.length > 0 && (
-          <ProductShowcase
-            section={{
-              title:              ui.products_section_title ?? '',
-              description:        ui.products_section_description ?? undefined,
-              search_placeholder: ui.search_placeholder ?? undefined,
-              filter_label:       ui.filter_label ?? undefined,
-            }}
-            products={fallbackProducts}
-            categories={categories}
-            ui={ui}
-          />
-        )
-    }
+    <!-- 4 tarjetas de categoría → llevan a /[slug] -->
+    <CategoryCards categories={categories} ui={ui} />
   </main>
 
-  <!-- Footer dinámico -->
   <Footer global={global} />
 </BaseLayout>

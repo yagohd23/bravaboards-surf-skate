@@ -33,6 +33,7 @@ const statusLabel = isAvailable
   data-product
   data-searchable={`${product.name} ${product.category?.name ?? ''} ${product.brand?.name ?? ''}`.toLowerCase()}
   data-category={product.category?.slug ?? ''}
+  data-subcategory={product.subcategory?.slug ?? ''}
 >
   <!-- Imagen -->
   <a

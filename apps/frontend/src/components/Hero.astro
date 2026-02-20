@@ -20,6 +20,7 @@ const { title, subtitle, background, videoUrl, ctas } = Astro.props;
 // ── Detección del tipo de video ───────────────────────────────────────────────
 
 function getYouTubeId(url: string): string | null {
+  // Solo watch?v= y youtu.be — los clips (youtube.com/clip/...) no son embebibles
   const m = url.match(
     /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
   );
@@ -31,6 +32,10 @@ function getVimeoId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function isDirectVideoFile(url: string): boolean {
+  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
+}
+
 type VideoType = 'youtube' | 'vimeo' | 'direct' | null;
 
 let videoType: VideoType = null;
@@ -40,12 +45,13 @@ let vimeoId: string | null = null;
 if (videoUrl) {
   youtubeId = getYouTubeId(videoUrl);
   vimeoId   = getVimeoId(videoUrl);
-  if (youtubeId)      videoType = 'youtube';
-  else if (vimeoId)   videoType = 'vimeo';
-  else                videoType = 'direct';
+  if (youtubeId)                   videoType = 'youtube';
+  else if (vimeoId)                videoType = 'vimeo';
+  else if (isDirectVideoFile(videoUrl)) videoType = 'direct';
+  // URLs no reconocidas (clips de YouTube, etc.) → caen al fallback de imagen
 }
 
-// ── Imagen de fallback (si no hay video) ─────────────────────────────────────
+// ── Imagen de fallback (si no hay video válido) ───────────────────────────────
 const bgUrl = !videoType ? getStrapiMediaUrl(background) : null;
 const bgAlt = getStrapiMediaAlt(background, title);
 
@@ -95,12 +101,13 @@ const vimeoEmbedUrl = vimeoId
   <!-- ── Fondo: MP4 / WebM directo ─────────────────────────────────────── -->
   {videoType === 'direct' && videoUrl && (
     <video
+      id="hero-video"
       autoplay
       muted
       loop
       playsinline
       class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
-      aria-hidden="true"
+aria-hidden="true"
       preload="auto"
     >
       <source src={videoUrl} />

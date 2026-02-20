@@ -183,4 +183,42 @@ const navItems = g?.nav_menu ?? [];
       });
     }
   });
+
+  // ── Smooth scroll para hash links (compensa la altura del header sticky) ──
+  function scrollToHash(hash: string): void {
+    const target = document.getElementById(hash);
+    if (!target) return;
+    const headerH = document.querySelector('header')?.offsetHeight ?? 64;
+    const top = target.getBoundingClientRect().top + window.scrollY - headerH - 12;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  // Intercepta clicks en enlaces con hash
+  document.querySelectorAll<HTMLAnchorElement>('a[href*="#"]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href') ?? '';
+      const hashIdx = href.indexOf('#');
+      if (hashIdx === -1) return;
+
+      const hash     = href.slice(hashIdx + 1);
+      const pagePath = href.slice(0, hashIdx) || window.location.pathname;
+
+      // Solo intercepta si el destino es la página actual
+      if (pagePath !== window.location.pathname) return;
+
+      const target = document.getElementById(hash);
+      if (!target) return;
+
+      e.preventDefault();
+      scrollToHash(hash);
+      history.pushState(null, '', `#${hash}`);
+    });
+  });
+
+  // Al cargar la página con un hash (ej: navegando desde otra página)
+  if (window.location.hash) {
+    const hash = window.location.hash.slice(1);
+    // Pequeño delay para que el layout esté completamente renderizado
+    setTimeout(() => scrollToHash(hash), 80);
+  }
 </script>

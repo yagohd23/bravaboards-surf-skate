@@ -1,0 +1,99 @@
+---
+/**
+ * HomeFeatured — BravaBoards
+ * Muestra productos con featured=true agrupados por categoría → subcategoría.
+ * Máximo 4 productos por subcategoría.
+ */
+import type { Category, Subcategory, Product, UILabels } from '../types/strapi';
+import ProductCard from './ProductCard.astro';
+
+interface Props {
+  categories: Category[];
+  subcategories: Subcategory[];
+  featuredProducts: Product[];
+  ui: UILabels;
+}
+
+const { categories, subcategories, featuredProducts, ui } = Astro.props;
+
+// ── Función principal: filtra los productos destacados de una subcategoría ────
+function getFeaturedBySubcategory(subcategorySlug: string, products: Product[]): Product[] {
+  return products
+    .filter(p => p.featured && p.subcategory?.slug === subcategorySlug)
+    .slice(0, 4);
+}
+
+// ── Agrupar subcategorías por slug de categoría ───────────────────────────────
+const subcatsByCategory = new Map<string, Subcategory[]>();
+for (const sub of subcategories) {
+  const catSlug = sub.category?.slug;
+  if (!catSlug) continue;
+  if (!subcatsByCategory.has(catSlug)) subcatsByCategory.set(catSlug, []);
+  subcatsByCategory.get(catSlug)!.push(sub);
+}
+
+// Solo mostrar categorías que tengan al menos una subcategoría con productos destacados
+const activeCategories = categories.filter(cat => {
+  const subs = subcatsByCategory.get(cat.slug) ?? [];
+  return subs.some(sub => getFeaturedBySubcategory(sub.slug, featuredProducts).length > 0);
+});
+---
+
+{activeCategories.length > 0 && (
+  <div class="py-16 bg-warm-white">
+    <div class="container space-y-20">
+      {activeCategories.map(cat => {
+        const subs = (subcatsByCategory.get(cat.slug) ?? []).filter(
+          sub => getFeaturedBySubcategory(sub.slug, featuredProducts).length > 0
+        );
+
+        return (
+          <section aria-labelledby={`cat-${cat.slug}`}>
+            <!-- Cabecera de categoría -->
+            <div class="flex items-center justify-between mb-10 pb-4 border-b border-sand-dark">
+              <h2
+                id={`cat-${cat.slug}`}
+                class="text-2xl sm:text-3xl font-bold text-navy tracking-tight"
+              >
+                {cat.name}
+              </h2>
+              {ui.view_all && (
+                <a
+                  href={`/${cat.slug}`}
+                  class="text-sm font-medium text-ocean hover:text-ocean-light transition-colors"
+                >
+                  {ui.view_all} →
+                </a>
+              )}
+            </div>
+
+            <!-- Subcategorías con sus productos -->
+            <div class="space-y-12">
+              {subs.map(sub => {
+                const products = getFeaturedBySubcategory(sub.slug, featuredProducts);
+                return (
+                  <div>
+                    <!-- Cabecera de subcategoría -->
+                    <div class="flex items-center gap-3 mb-6">
+                      <h3 class="text-base font-semibold text-stone uppercase tracking-widest">
+                        {sub.name}
+                      </h3>
+                      <div class="flex-1 h-px bg-sand-dark"></div>
+                    </div>
+
+                    <!-- Grid de 4 productos destacados -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                      {products.map(product => (
+                        <ProductCard product={product} ui={ui} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  </div>
+)}

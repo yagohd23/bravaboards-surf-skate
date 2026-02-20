@@ -100,8 +100,8 @@ export interface HomeData {
   hero_title: string;
   hero_subtitle: string | null;
   hero_background: StrapiMedia | null;
-  /** URL de video: YouTube, Vimeo o MP4 directo. Tiene prioridad sobre hero_background. */
-  hero_video_url: string | null;
+  /** Video subido a Strapi (MP4, WebM…). Tiene prioridad sobre hero_background. */
+  hero_video: StrapiMedia | null;
   hero_ctas: HeroCTA[] | null;
   featured_sections: FeaturedSection[] | null;
   seo_title: string | null;
@@ -109,6 +109,17 @@ export interface HomeData {
   seo_image: StrapiMedia | null;
   seo_robots: string | null;
   seo_canonical: string | null;
+}
+
+// ── Subcategory (collection type) ─────────────────────────────────────────────
+
+export interface Subcategory {
+  id: number;
+  documentId?: string;
+  name: string;
+  slug: string;
+  order: number | null;
+  category?: Category | null;
 }
 
 // ── Product (collection type) ─────────────────────────────────────────────────
@@ -121,9 +132,11 @@ export interface Product {
   description: unknown;
   price: number;
   actual_status: 'Disponible' | 'Agotado' | null;
+  featured: boolean;
   featured_image: StrapiMedia | null;
   gallery: StrapiMedia[] | null;
   category?: Category | null;
+  subcategory?: Subcategory | null;
   brand?: Brand | null;
 }
 

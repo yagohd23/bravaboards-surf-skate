@@ -31,7 +31,6 @@
     "featured_image": {
       "type": "media",
       "multiple": false,
-      "required": true,
       "allowedTypes": ["images", "files", "videos", "audios"]
     },
     "gallery": {
@@ -56,6 +55,15 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::brand.brand"
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "subcategory": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::subcategory.subcategory"
     }
   }
 }

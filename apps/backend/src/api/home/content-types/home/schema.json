@@ -23,8 +23,10 @@
       "multiple": false,
       "allowedTypes": ["images"]
     },
-    "hero_video_url": {
-      "type": "string"
+    "hero_video": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["videos"]
     },
     "hero_ctas": {
       "type": "json"

@@ -47,6 +47,26 @@ log() {
     echo "$log_line" >> "$LOG_FILE"
 }
 
+# Esperar a que Strapi esté listo (hasta 90 segundos)
+wait_for_strapi() {
+    local max_attempts=30
+    local attempt=1
+    log INFO "Waiting for Strapi to be ready at http://localhost:1337/_health ..."
+    while [ $attempt -le $max_attempts ]; do
+        local status
+        status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:1337/_health 2>/dev/null || echo "000")
+        if [[ "$status" == "2"* ]]; then
+            log SUCCESS "Strapi is ready! (HTTP $status)"
+            return 0
+        fi
+        log INFO "Strapi not ready yet (attempt $attempt/$max_attempts, HTTP $status)..."
+        sleep 3
+        attempt=$((attempt + 1))
+    done
+    log ERROR "Strapi failed to become ready after 90s — aborting deploy"
+    return 1
+}
+
 # Banner inicial
 echo ""
 echo -e "${BLUE}=========================================${NC}"
@@ -60,11 +80,10 @@ log INFO "Starting deployment process..."
 # Cambiar al directorio del proyecto
 cd "$PROJECT_DIR"
 
-# 1. Git Pull (si es un repositorio git)
+# 1. Git Pull
 if [ -d ".git" ]; then
     log INFO "Git repository detected, pulling latest changes..."
 
-    # Guardar el hash del commit actual
     CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
     if git pull origin main 2>&1 | tee -a "$LOG_FILE"; then
@@ -86,7 +105,6 @@ fi
 # 2. Detectar cambios en backend
 BACKEND_CHANGED=false
 if [ -d ".git" ]; then
-    # Verificar si hubo cambios en el directorio backend
     BACKEND_FILES_CHANGED=$(git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep "^apps/backend/" || true)
 
     if [ -n "$BACKEND_FILES_CHANGED" ]; then
@@ -95,7 +113,39 @@ if [ -d ".git" ]; then
     fi
 fi
 
-# 3. Build del frontend (Astro)
+# 3. Si hubo cambios en backend: build del admin de Strapi + restart del servicio
+#    ANTES de construir el frontend (el frontend necesita Strapi disponible)
+if [ "$BACKEND_CHANGED" = true ]; then
+    log INFO "Building Strapi admin panel..."
+    cd "$BACKEND_DIR"
+
+    if NODE_ENV=production npm run build 2>&1 | tee -a "$LOG_FILE"; then
+        log SUCCESS "Strapi admin panel built successfully!"
+    else
+        log ERROR "Strapi admin build failed!"
+        exit 1
+    fi
+
+    log INFO "Restarting Strapi backend due to code changes..."
+
+    if systemctl list-units --full -all | grep -q "strapi.service"; then
+        if sudo systemctl restart strapi.service 2>&1 | tee -a "$LOG_FILE"; then
+            log SUCCESS "Strapi backend restarted successfully!"
+        else
+            log ERROR "Failed to restart Strapi backend!"
+            exit 1
+        fi
+    else
+        log WARN "Strapi service not found, skipping restart"
+    fi
+fi
+
+# 4. Esperar a que Strapi esté listo (siempre, antes del build del frontend)
+if ! wait_for_strapi; then
+    exit 1
+fi
+
+# 5. Build del frontend (Astro) — ahora que Strapi está disponible
 log INFO "Building frontend (Astro)..."
 cd "$FRONTEND_DIR"
 
@@ -106,38 +156,7 @@ else
     exit 1
 fi
 
-# 4. Restart backend si hubo cambios
-if [ "$BACKEND_CHANGED" = true ]; then
-    log INFO "Restarting Strapi backend due to code changes..."
-
-    cd "$BACKEND_DIR"
-
-    # Verificar si el servicio existe
-    if systemctl list-units --full -all | grep -q "strapi.service"; then
-        if sudo systemctl restart strapi.service 2>&1 | tee -a "$LOG_FILE"; then
-            log SUCCESS "Strapi backend restarted successfully!"
-
-            # Esperar un momento para que el servicio inicie
-            sleep 2
-
-            # Verificar estado
-            if sudo systemctl is-active --quiet strapi.service; then
-                log SUCCESS "Strapi is running"
-            else
-                log WARN "Strapi may not be running properly"
-            fi
-        else
-            log ERROR "Failed to restart Strapi backend!"
-            exit 1
-        fi
-    else
-        log WARN "Strapi service not found, skipping restart"
-    fi
-else
-    log INFO "No backend changes detected, skipping Strapi restart"
-fi
-
-# 5. Verificar configuración de nginx
+# 6. Verificar configuración de nginx
 log INFO "Testing nginx configuration..."
 
 if sudo nginx -t 2>&1 | tee -a "$LOG_FILE"; then
@@ -147,7 +166,7 @@ else
     exit 1
 fi
 
-# 6. Recargar nginx
+# 7. Recargar nginx
 log INFO "Reloading nginx..."
 
 if sudo systemctl reload nginx 2>&1 | tee -a "$LOG_FILE"; then
@@ -157,7 +176,7 @@ else
     exit 1
 fi
 
-# 7. Verificar estado de nginx
+# 8. Verificar estado de nginx
 log INFO "Checking nginx status..."
 
 if sudo systemctl is-active --quiet nginx; then

@@ -51,6 +51,10 @@
     "seo_robots": {
       "type": "string",
       "default": "index, follow"
+    },
+    "theme": {
+      "type": "json",
+      "required": false
     }
   }
 }

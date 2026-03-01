@@ -34,6 +34,26 @@
     "featured_sections": {
       "type": "json"
     },
+    "categories_title": {
+      "type": "string"
+    },
+    "categories_subtitle": {
+      "type": "text"
+    },
+    "about_title": {
+      "type": "string"
+    },
+    "about_subtitle": {
+      "type": "text"
+    },
+    "about_body": {
+      "type": "text"
+    },
+    "about_image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
     "seo_title": {
       "type": "string"
     },
@@ -51,6 +71,18 @@
     },
     "seo_canonical": {
       "type": "string"
+    },
+    "hero_styles": {
+      "type": "json",
+      "required": false
+    },
+    "categories_styles": {
+      "type": "json",
+      "required": false
+    },
+    "about_styles": {
+      "type": "json",
+      "required": false
     }
   }
 }

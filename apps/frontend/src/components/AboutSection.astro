@@ -1,0 +1,109 @@
+---
+/**
+ * AboutSection — BravaBoards
+ * Sección "Quiénes somos" en el home. Contenido 100% desde Strapi.
+ * Layout: texto a la izquierda + imagen a la derecha (en desktop).
+ * Todos los colores y estilos vienen de Strapi → Home → about_styles (JSON).
+ *
+ * Campos about_styles disponibles en Strapi (todos opcionales — tienen fallback):
+ *   section_bg     Color de fondo de la sección.     Default: #F5E6C8
+ *   title_color    Color del título H2.               Default: #0D1F33
+ *   subtitle_color Color del subtítulo.               Default: #0077B6
+ *   body_color     Color del cuerpo del texto.        Default: #6B7280
+ *   accent_color   Color del elemento decorativo CSS. Default: rgba(232,93,42,0.2)
+ */
+import type { StrapiMedia, AboutStyles } from '../types/strapi';
+import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
+
+interface Props {
+  title: string;
+  subtitle?: string | null;
+  body?: string | null;
+  image?: StrapiMedia | null;
+  styles?: AboutStyles | null;
+}
+
+const { title, subtitle, body, image, styles } = Astro.props;
+
+const imgUrl = getStrapiMediaUrl(image);
+const imgAlt = getStrapiMediaAlt(image, title);
+
+// ── Estilos dinámicos desde Strapi → CSS custom properties ───────────────────
+const s = styles ?? {};
+
+const cssVars = [
+  `--about-bg:${s.section_bg ?? '#F5E6C8'}`,
+  `--about-title:${s.title_color ?? '#0D1F33'}`,
+  `--about-subtitle:${s.subtitle_color ?? '#0077B6'}`,
+  `--about-body:${s.body_color ?? '#6B7280'}`,
+  `--about-accent:${s.accent_color ?? 'rgba(232,93,42,0.2)'}`,
+].join(';');
+---
+
+<section class="about-section py-20" style={cssVars}>
+  <div class="container">
+    <div class={`grid gap-12 items-center ${imgUrl ? 'lg:grid-cols-2' : 'max-w-2xl mx-auto'}`}>
+
+      <!-- Texto -->
+      <div>
+        <h2 class="about-title text-3xl sm:text-4xl font-bold tracking-tight leading-tight mb-4">
+          {title}
+        </h2>
+        {subtitle && (
+          <p class="about-subtitle font-semibold text-lg mb-6 leading-snug">
+            {subtitle}
+          </p>
+        )}
+        {body && (
+          <p class="about-body leading-relaxed text-base sm:text-lg whitespace-pre-line">
+            {body}
+          </p>
+        )}
+      </div>
+
+      <!-- Imagen (solo si existe) -->
+      {imgUrl && (
+        <div class="relative">
+          <img
+            src={imgUrl}
+            alt={imgAlt}
+            class="w-full rounded-2xl object-cover shadow-lg aspect-4/3"
+            loading="lazy"
+            decoding="async"
+          />
+          <!-- Detalle decorativo — color desde Strapi -->
+          <div
+            class="about-accent absolute -bottom-4 -right-4 w-24 h-24 rounded-2xl -z-10"
+            aria-hidden="true"
+          ></div>
+        </div>
+      )}
+
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Todos los valores de color leen las CSS vars establecidas dinámicamente
+     desde Strapi. Los fallbacks son los valores por defecto del diseño. */
+
+  .about-section {
+    background-color: var(--about-bg, #F5E6C8);
+  }
+
+  .about-title {
+    color: var(--about-title, #0D1F33);
+  }
+
+  .about-subtitle {
+    color: var(--about-subtitle, #0077B6);
+  }
+
+  .about-body {
+    color: var(--about-body, #6B7280);
+  }
+
+  .about-accent {
+    background-color: var(--about-accent, rgba(232,93,42,0.2));
+  }
+</style>

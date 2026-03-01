@@ -1,12 +1,89 @@
 ---
 /**
  * Home — BravaBoards
- * Todo el contenido visible viene de Strapi. Sin texto hardcodeado.
+ * Todo el contenido visible (textos, imágenes, colores, estilos) viene de Strapi.
+ * Sin texto hardcodeado. Sin colores fijos en el código.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ESTRUCTURA DE DATOS EN STRAPI
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * ── Single type: Global (/api/global) ─────────────────────────────────────────
+ *   site_name        string        Nombre del sitio
+ *   logo             media         Logo del header
+ *   favicon          media         Favicon del sitio
+ *   nav_menu         json          Menú de navegación (array de { label, href, children? })
+ *   footer           json          Datos del footer (menu, contact, legal, copyright)
+ *   ui_labels        json          Textos de interfaz:
+ *                                    view_all       → Texto CTA de tarjetas (ej: "Explorar →")
+ *                                    search_placeholder, filter_label,
+ *                                    add_to_cart, view_product,
+ *                                    status_available, status_sold_out,
+ *                                    loading, error, empty_results
+ *   theme            json          Paleta de colores del sitio (HEX):
+ *                                    ocean, ocean_light, navy, sand, sand_dark,
+ *                                    coral, stone, stone_light, warm_white
+ *                                  → Se inyecta como CSS :root { --color-ocean: ...; }
+ *   seo_title        string        Título SEO por defecto
+ *   seo_description  text          Descripción SEO por defecto
+ *   seo_image        media         Imagen OG por defecto
+ *   seo_robots       string        Robots meta por defecto (default: "index, follow")
+ *
+ * ── Single type: Home (/api/home) ─────────────────────────────────────────────
+ *   — Sección Hero —
+ *   hero_title       string*       Título principal H1                    [requerido]
+ *   hero_subtitle    text          Subtítulo bajo el H1
+ *   hero_background  media         Imagen de fondo (cuando no hay video)
+ *   hero_video       media         Video de fondo (MP4/WebM — prioridad sobre imagen)
+ *   hero_ctas        json          Botones CTA: [{ label, href, variant: "primary"|"secondary" }]
+ *   hero_styles      json          Estilos visuales del Hero:
+ *                                    section_bg, min_height,
+ *                                    overlay_from, overlay_via, overlay_to,
+ *                                    title_color, subtitle_color,
+ *                                    cta_primary_bg, cta_primary_text, cta_primary_hover_bg,
+ *                                    cta_secondary_border, cta_secondary_text,
+ *                                    cta_secondary_hover_bg, cta_secondary_hover_text
+ *
+ *   — Sección Categorías —
+ *   categories_title    string     Título de la sección de categorías
+ *   categories_subtitle text       Subtítulo de la sección de categorías
+ *   categories_styles   json       Estilos visuales de CategoryCards:
+ *                                    section_bg, title_color, subtitle_color,
+ *                                    card_fallback_from, card_fallback_to,
+ *                                    overlay_from, overlay_to,
+ *                                    card_title_color, view_all_color, view_all_hover_color
+ *
+ *   — Sección About —
+ *   about_title      string        Título "Quiénes somos"
+ *   about_subtitle   text          Subtítulo / tagline
+ *   about_body       text          Cuerpo del texto
+ *   about_image      media         Imagen de la sección
+ *   about_styles     json          Estilos visuales de AboutSection:
+ *                                    section_bg, title_color, subtitle_color,
+ *                                    body_color, accent_color
+ *
+ *   — SEO —
+ *   seo_title        string        Título SEO de la home
+ *   seo_description  text          Descripción SEO de la home
+ *   seo_image        media         Imagen OG de la home
+ *   seo_robots       string        Robots meta de la home
+ *   seo_canonical    string        URL canónica de la home
+ *
+ * ── Collection type: Category (/api/categories) ───────────────────────────────
+ *   name             string*       Nombre de la categoría            [requerido, único]
+ *   slug             uid           Slug URL generado desde name
+ *   description      blocks        Descripción (Strapi Rich Text)    [requerido]
+ *   images           media         Imagen principal
+ *   card_image       media         Imagen específica para la tarjeta home (prioridad sobre images)
+ *   order            integer       Orden de visualización
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Hero from '../components/Hero.astro';
 import CategoryCards from '../components/CategoryCards.astro';
+import AboutSection from '../components/AboutSection.astro';
 import Footer from '../components/Footer.astro';
 import {
   getGlobalData,
@@ -27,9 +104,13 @@ const global     = rawGlobal     as GlobalData | null;
 const home       = rawHome       as HomeData   | null;
 const categories = rawCategories as Category[] ?? [];
 
-// ── SEO ───────────────────────────────────────────────────────────────────────
+// ── Tema global de colores → CSS variables (:root) ────────────────────────────
+const theme = global?.theme ?? null;
+
+// ── Etiquetas de UI ───────────────────────────────────────────────────────────
 const ui = global?.ui_labels ?? {};
 
+// ── SEO ───────────────────────────────────────────────────────────────────────
 const seo = {
   title:       home?.seo_title       ?? global?.seo_title       ?? null,
   description: home?.seo_description ?? global?.seo_description ?? null,
@@ -41,11 +122,11 @@ const seo = {
 const faviconUrl = getStrapiMediaUrl(global?.favicon);
 ---
 
-<BaseLayout seo={seo} faviconUrl={faviconUrl}>
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={theme} ui={ui}>
   <Header global={global} />
 
   <main id="main-content">
-    <!-- Hero -->
+    <!-- Hero — textos, imagen/video, CTAs y estilos 100% desde Strapi -->
     {home?.hero_title && (
       <Hero
         title={home.hero_title}
@@ -53,11 +134,29 @@ const faviconUrl = getStrapiMediaUrl(global?.favicon);
         background={home.hero_background}
         videoUrl={getStrapiMediaUrl(home.hero_video)}
         ctas={home.hero_ctas}
+        styles={home.hero_styles}
       />
     )}
 
-    <!-- 4 tarjetas de categoría → llevan a /[slug] -->
-    <CategoryCards categories={categories} ui={ui} />
+    <!-- Tarjetas de categoría → textos, imágenes y estilos desde Strapi -->
+    <CategoryCards
+      categories={categories}
+      ui={ui}
+      title={home?.categories_title}
+      subtitle={home?.categories_subtitle}
+      styles={home?.categories_styles}
+    />
+
+    <!-- Quiénes somos — textos, imagen y estilos desde Strapi -->
+    {home?.about_title && (
+      <AboutSection
+        title={home.about_title}
+        subtitle={home.about_subtitle}
+        body={home.about_body}
+        image={home.about_image}
+        styles={home.about_styles}
+      />
+    )}
   </main>
 
   <Footer global={global} />

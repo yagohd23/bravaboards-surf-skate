@@ -1,7 +1,11 @@
 ---
 /**
  * ProductCard — BravaBoards
- * Tarjeta de producto. Todos los textos vienen de Strapi.
+ * Tarjeta de producto con:
+ *   - Botón de favoritos (corazón) — persiste en localStorage
+ *   - Botón "Añadir al carrito" — despacha evento 'cart:add'
+ *   - Click en la tarjeta → abre modal de detalle (evento 'product:open')
+ * Sin texto hardcodeado — todas las etiquetas vienen de ui_labels (Strapi).
  */
 import type { Product, UILabels } from '../types/strapi';
 import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
@@ -17,7 +21,6 @@ const imageUrl = getStrapiMediaUrl(product.featured_image);
 const imageAlt = getStrapiMediaAlt(product.featured_image, product.name);
 const isAvailable = product.actual_status === 'Disponible' || product.actual_status == null;
 
-// Formateador de precio en euros (locale español)
 const priceFormatted = new Intl.NumberFormat('es-ES', {
   style: 'currency',
   currency: 'EUR',
@@ -26,27 +29,65 @@ const priceFormatted = new Intl.NumberFormat('es-ES', {
 const statusLabel = isAvailable
   ? (ui.status_available ?? '')
   : (ui.status_sold_out ?? '');
+
+// Datos serializados del producto para el modal y el carrito (leídos client-side)
+const productData = JSON.stringify({
+  id:             product.id,
+  name:           product.name,
+  priceRaw:       product.price,
+  priceFormatted,
+  imageUrl:       imageUrl ?? '',
+  imageAlt,
+  description:    product.description ?? null,
+  status:         statusLabel,
+  isAvailable,
+  brand:          product.brand?.name    ?? '',
+  category:       product.category?.name ?? '',
+  slug:           product.slug,
+});
 ---
 
 <article
-  class="group bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-md hover:border-ocean-light transition-all duration-200 flex flex-col"
+  class="group relative bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-md hover:border-ocean-light transition-all duration-200 flex flex-col cursor-pointer"
+  style="background-color: #ffffff"
   data-product
+  data-product-id={product.id}
+  data-product-json={productData}
   data-searchable={`${product.name} ${product.category?.name ?? ''} ${product.brand?.name ?? ''}`.toLowerCase()}
   data-category={product.category?.slug ?? ''}
   data-subcategory={product.subcategory?.slug ?? ''}
 >
-  <!-- Imagen -->
-  <a
-    href={`/productos/${product.slug}`}
-    class="block overflow-hidden aspect-square bg-sand"
-    tabindex="-1"
-    aria-hidden="true"
+  <!-- Botón favoritos (posición absoluta, top-right, z-10) -->
+  <button
+    class="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-warm-white/90 shadow-sm text-stone-light hover:text-coral transition-colors duration-150"
+    data-fav-btn
+    data-product-id={product.id}
+    data-ignore-modal
+    aria-label={ui.favorites_add ?? ''}
+    type="button"
   >
+    <!-- Corazón outline: visible por defecto -->
+    <svg class="fav-outline w-4 h-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M10 17.5C10 17.5 2 12.5 2 7a4 4 0 0 1 8-1.2A4 4 0 0 1 18 7c0 5.5-8 10.5-8 10.5z"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <!-- Corazón relleno: visible cuando es favorito -->
+    <svg class="fav-filled w-4 h-4 hidden text-coral" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M10 17.5C10 17.5 2 12.5 2 7a4 4 0 0 1 8-1.2A4 4 0 0 1 18 7c0 5.5-8 10.5-8 10.5z"/>
+    </svg>
+  </button>
+
+  <!-- Imagen -->
+  <div class="overflow-hidden aspect-square" style="background-color: #ffffff">
     {imageUrl
       ? <img
           src={imageUrl}
           alt={imageAlt}
-          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          class="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
           decoding="async"
         />
@@ -58,9 +99,9 @@ const statusLabel = isAvailable
           </svg>
         </div>
     }
-  </a>
+  </div>
 
-  <!-- Info -->
+  <!-- Información -->
   <div class="flex flex-col flex-1 p-4 gap-2">
     <!-- Categoría / Marca -->
     {(product.category?.name || product.brand?.name) && (
@@ -71,12 +112,7 @@ const statusLabel = isAvailable
 
     <!-- Nombre -->
     <h3 class="text-sm font-semibold text-navy leading-snug">
-      <a
-        href={`/productos/${product.slug}`}
-        class="hover:text-ocean transition-colors"
-      >
-        {product.name}
-      </a>
+      {product.name}
     </h3>
 
     <!-- Precio + Estado -->
@@ -94,14 +130,79 @@ const statusLabel = isAvailable
       )}
     </div>
 
-    <!-- CTA -->
-    {ui.view_product && (
-      <a
-        href={`/productos/${product.slug}`}
-        class="mt-2 inline-flex items-center justify-center w-full px-4 py-2.5 bg-ocean text-warm-white text-sm font-medium rounded-md hover:bg-ocean-light transition-colors duration-200"
-      >
-        {ui.view_product}
-      </a>
-    )}
+    <!-- Botón añadir al carrito -->
+    <button
+      class="mt-2 inline-flex items-center justify-center w-full px-4 py-2.5 bg-ocean text-warm-white text-sm font-medium rounded-md hover:bg-ocean-light transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+      data-cart-btn
+      data-ignore-modal
+      disabled={!isAvailable}
+      type="button"
+    >
+      {ui.add_to_cart ?? ''}
+    </button>
   </div>
 </article>
+
+<script>
+  const FAV_KEY = 'bravaboards_favorites';
+
+  function loadFavs(): number[] {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'); } catch { return []; }
+  }
+
+  function saveFavs(ids: number[]): void {
+    localStorage.setItem(FAV_KEY, JSON.stringify(ids));
+  }
+
+  // ── Inicializar estado de favoritos al cargar ─────────────────────────────────
+  const favIds = loadFavs();
+  document.querySelectorAll<HTMLElement>('[data-fav-btn]').forEach((btn) => {
+    if (favIds.includes(Number(btn.dataset.productId))) {
+      btn.querySelector('.fav-outline')?.classList.add('hidden');
+      btn.querySelector('.fav-filled')?.classList.remove('hidden');
+    }
+  });
+
+  // ── Toggle favorito ───────────────────────────────────────────────────────────
+  document.querySelectorAll<HTMLButtonElement>('[data-fav-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id  = Number(btn.dataset.productId);
+      const ids = loadFavs();
+      const idx = ids.indexOf(id);
+      const isFav = idx === -1;
+
+      if (isFav) ids.push(id);
+      else       ids.splice(idx, 1);
+      saveFavs(ids);
+
+      btn.querySelector('.fav-outline')?.classList.toggle('hidden', isFav);
+      btn.querySelector('.fav-filled')?.classList.toggle('hidden', !isFav);
+    });
+  });
+
+  // ── Añadir al carrito ─────────────────────────────────────────────────────────
+  document.querySelectorAll<HTMLButtonElement>('[data-cart-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = btn.closest<HTMLElement>('[data-product-json]');
+      if (!card) return;
+      try {
+        const data = JSON.parse(card.dataset.productJson ?? '{}');
+        document.dispatchEvent(new CustomEvent('cart:add', { detail: data }));
+      } catch { /* JSON parse error: ignorar */ }
+    });
+  });
+
+  // ── Click en la tarjeta → abrir modal ────────────────────────────────────────
+  document.querySelectorAll<HTMLElement>('[data-product][data-product-json]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      // Si el click viene de un botón marcado como data-ignore-modal, no abrir modal
+      if ((e.target as Element).closest('[data-ignore-modal]')) return;
+      try {
+        const data = JSON.parse(card.dataset.productJson ?? '{}');
+        document.dispatchEvent(new CustomEvent('product:open', { detail: data }));
+      } catch { /* JSON parse error: ignorar */ }
+    });
+  });
+</script>

@@ -2,9 +2,25 @@
 /**
  * Hero — BravaBoards
  * Fondo soporta: video MP4 directo, YouTube, Vimeo, o imagen estática.
- * La fuente viene siempre de Strapi (hero_video_url o hero_background).
+ * Todos los colores y estilos vienen de Strapi → Home → hero_styles (JSON).
+ *
+ * Campos hero_styles disponibles en Strapi (todos opcionales — tienen fallback):
+ *   section_bg            Color de fondo cuando no hay imagen/video.  Default: #0D1F33
+ *   min_height            Altura mínima del hero.                     Default: 80vh
+ *   overlay_from          Gradiente overlay — parte inferior (rgba).  Default: rgba(13,31,51,0.88)
+ *   overlay_via           Gradiente overlay — centro (rgba).          Default: rgba(13,31,51,0.5)
+ *   overlay_to            Gradiente overlay — parte superior (rgba).  Default: rgba(13,31,51,0.2)
+ *   title_color           Color del H1.                               Default: #FDFAF5
+ *   subtitle_color        Color del subtítulo.                        Default: #C5C7C9
+ *   cta_primary_bg        Fondo CTA primario.                         Default: #E85D2A
+ *   cta_primary_text      Texto CTA primario.                         Default: #FDFAF5
+ *   cta_primary_hover_bg  Fondo CTA primario en hover.                Default: #0077B6
+ *   cta_secondary_border  Borde CTA secundario.                       Default: #FDFAF5
+ *   cta_secondary_text    Texto CTA secundario.                       Default: #FDFAF5
+ *   cta_secondary_hover_bg   Fondo CTA secundario en hover.           Default: #FDFAF5
+ *   cta_secondary_hover_text Texto CTA secundario en hover.           Default: #0D1F33
  */
-import type { HeroCTA, StrapiMedia } from '../types/strapi';
+import type { HeroCTA, StrapiMedia, HeroStyles } from '../types/strapi';
 import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
 
 interface Props {
@@ -13,14 +29,14 @@ interface Props {
   background?: StrapiMedia | null;
   videoUrl?: string | null;
   ctas?: HeroCTA[] | null;
+  styles?: HeroStyles | null;
 }
 
-const { title, subtitle, background, videoUrl, ctas } = Astro.props;
+const { title, subtitle, background, videoUrl, ctas, styles } = Astro.props;
 
 // ── Detección del tipo de video ───────────────────────────────────────────────
 
 function getYouTubeId(url: string): string | null {
-  // Solo watch?v= y youtu.be — los clips (youtube.com/clip/...) no son embebibles
   const m = url.match(
     /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
   );
@@ -45,10 +61,9 @@ let vimeoId: string | null = null;
 if (videoUrl) {
   youtubeId = getYouTubeId(videoUrl);
   vimeoId   = getVimeoId(videoUrl);
-  if (youtubeId)                   videoType = 'youtube';
-  else if (vimeoId)                videoType = 'vimeo';
+  if (youtubeId)                        videoType = 'youtube';
+  else if (vimeoId)                     videoType = 'vimeo';
   else if (isDirectVideoFile(videoUrl)) videoType = 'direct';
-  // URLs no reconocidas (clips de YouTube, etc.) → caen al fallback de imagen
 }
 
 // ── Imagen de fallback (si no hay video válido) ───────────────────────────────
@@ -63,10 +78,32 @@ const youtubeEmbedUrl = youtubeId
 const vimeoEmbedUrl = vimeoId
   ? `https://player.vimeo.com/video/${vimeoId}?autoplay=1&muted=1&loop=1&background=1&byline=0&title=0`
   : null;
+
+// ── Estilos dinámicos desde Strapi → CSS custom properties ───────────────────
+// Todos los valores con fallback para que la UI nunca se rompa.
+const s = styles ?? {};
+
+const cssVars = [
+  `--hero-bg:${s.section_bg ?? '#0D1F33'}`,
+  `--hero-min-h:${s.min_height ?? '80vh'}`,
+  `--hero-overlay-from:${s.overlay_from ?? 'rgba(13,31,51,0.88)'}`,
+  `--hero-overlay-via:${s.overlay_via ?? 'rgba(13,31,51,0.5)'}`,
+  `--hero-overlay-to:${s.overlay_to ?? 'rgba(13,31,51,0.2)'}`,
+  `--hero-title-color:${s.title_color ?? '#FDFAF5'}`,
+  `--hero-subtitle-color:${s.subtitle_color ?? '#C5C7C9'}`,
+  `--cta-p-bg:${s.cta_primary_bg ?? '#E85D2A'}`,
+  `--cta-p-text:${s.cta_primary_text ?? '#FDFAF5'}`,
+  `--cta-p-hover:${s.cta_primary_hover_bg ?? '#0077B6'}`,
+  `--cta-s-border:${s.cta_secondary_border ?? '#FDFAF5'}`,
+  `--cta-s-text:${s.cta_secondary_text ?? '#FDFAF5'}`,
+  `--cta-s-hover-bg:${s.cta_secondary_hover_bg ?? '#FDFAF5'}`,
+  `--cta-s-hover-text:${s.cta_secondary_hover_text ?? '#0D1F33'}`,
+].join(';');
 ---
 
 <section
-  class="relative w-full min-h-[80vh] flex items-center justify-center overflow-hidden bg-navy"
+  class="hero-section relative w-full flex items-center justify-center overflow-hidden"
+  style={cssVars}
   aria-label={title}
 >
 
@@ -107,7 +144,7 @@ const vimeoEmbedUrl = vimeoId
       loop
       playsinline
       class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
-aria-hidden="true"
+      aria-hidden="true"
       preload="auto"
     >
       <source src={videoUrl} />
@@ -125,21 +162,17 @@ aria-hidden="true"
     />
   )}
 
-  <!-- ── Overlay degradado mediterráneo ────────────────────────────────── -->
-  <div
-    class="absolute inset-0 z-10"
-    style="background: linear-gradient(to top, rgba(13,31,51,0.88) 0%, rgba(13,31,51,0.5) 50%, rgba(13,31,51,0.2) 100%);"
-    aria-hidden="true"
-  ></div>
+  <!-- ── Overlay degradado — colores desde Strapi ───────────────────────── -->
+  <div class="hero-overlay absolute inset-0 z-10" aria-hidden="true"></div>
 
   <!-- ── Contenido ─────────────────────────────────────────────────────── -->
-  <div class="relative z-20 container text-center text-warm-white py-24">
-    <h1 class="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight leading-tight mb-6">
+  <div class="relative z-20 container text-center py-24">
+    <h1 class="hero-title text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight leading-tight mb-6">
       {title}
     </h1>
 
     {subtitle && (
-      <p class="text-lg sm:text-xl lg:text-2xl text-stone-light max-w-2xl mx-auto mb-10 leading-relaxed">
+      <p class="hero-subtitle text-lg sm:text-xl lg:text-2xl max-w-2xl mx-auto mb-10 leading-relaxed">
         {subtitle}
       </p>
     )}
@@ -150,13 +183,13 @@ aria-hidden="true"
           cta.variant === 'primary'
             ? <a
                 href={cta.href}
-                class="inline-flex items-center justify-center px-8 py-3.5 bg-coral text-warm-white font-semibold text-sm tracking-wide rounded-md hover:bg-ocean transition-colors duration-200"
+                class="cta-primary inline-flex items-center justify-center px-8 py-3.5 font-semibold text-sm tracking-wide rounded-md"
               >
                 {cta.label}
               </a>
             : <a
                 href={cta.href}
-                class="inline-flex items-center justify-center px-8 py-3.5 border border-warm-white text-warm-white font-semibold text-sm tracking-wide rounded-md hover:bg-warm-white hover:text-navy transition-colors duration-200"
+                class="cta-secondary inline-flex items-center justify-center px-8 py-3.5 border font-semibold text-sm tracking-wide rounded-md"
               >
                 {cta.label}
               </a>
@@ -165,3 +198,49 @@ aria-hidden="true"
     )}
   </div>
 </section>
+
+<style>
+  /* Todos los valores de color leen las CSS vars establecidas dinámicamente
+     desde Strapi. Los fallbacks son los valores por defecto del diseño. */
+
+  .hero-section {
+    background-color: var(--hero-bg, #0D1F33);
+    min-height: var(--hero-min-h, 80vh);
+  }
+
+  .hero-overlay {
+    background: linear-gradient(
+      to top,
+      var(--hero-overlay-from, rgba(13,31,51,0.88)) 0%,
+      var(--hero-overlay-via,  rgba(13,31,51,0.5))  50%,
+      var(--hero-overlay-to,   rgba(13,31,51,0.2))  100%
+    );
+  }
+
+  .hero-title {
+    color: var(--hero-title-color, #FDFAF5);
+  }
+
+  .hero-subtitle {
+    color: var(--hero-subtitle-color, #C5C7C9);
+  }
+
+  .cta-primary {
+    background-color: var(--cta-p-bg, #E85D2A);
+    color: var(--cta-p-text, #FDFAF5);
+    transition: background-color 0.2s ease;
+  }
+  .cta-primary:hover {
+    background-color: var(--cta-p-hover, #0077B6);
+  }
+
+  .cta-secondary {
+    border-color: var(--cta-s-border, #FDFAF5);
+    color: var(--cta-s-text, #FDFAF5);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  .cta-secondary:hover {
+    background-color: var(--cta-s-hover-bg, #FDFAF5);
+    color: var(--cta-s-hover-text, #0D1F33);
+  }
+</style>

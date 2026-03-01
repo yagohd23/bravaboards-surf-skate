@@ -1,0 +1,265 @@
+---
+/**
+ * ProductModal — BravaBoards
+ * Modal de detalle de producto. Siempre presente en el DOM (via BaseLayout).
+ * Escucha el evento 'product:open' con los datos del producto.
+ * Renderiza la descripción en formato Strapi blocks client-side.
+ * Sin texto hardcodeado — todas las etiquetas vienen de ui_labels (Strapi).
+ */
+import type { UILabels } from '../types/strapi';
+
+interface Props {
+  ui: UILabels;
+}
+
+const { ui } = Astro.props;
+---
+
+<!--
+  #modal-overlay: fondo semitransparente + contenedor de centrado.
+  Click directo en el overlay (fuera del panel) cierra el modal.
+-->
+<div
+  id="modal-overlay"
+  class="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 bg-navy/60 opacity-0 invisible transition-opacity duration-200"
+  aria-hidden="true"
+>
+  <!-- Panel del modal -->
+  <div
+    id="modal-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-product-name"
+    class="relative bg-warm-white rounded-none sm:rounded-2xl shadow-2xl w-full max-w-[900px] h-dvh sm:h-[90vh] sm:max-h-[600px] overflow-hidden flex flex-col sm:flex-row"
+    style="background-color: #ffffff"
+  >
+    <!-- Botón cerrar -->
+    <button
+      id="modal-close-btn"
+      class="absolute top-3 right-3 z-10 flex items-center justify-center w-8 h-8 rounded-lg text-stone hover:text-navy hover:bg-sand transition-colors"
+      type="button"
+      aria-label={ui.cart_title ?? ''}
+    >
+      <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Imagen (columna izquierda en desktop, arriba en mobile) -->
+    <div class="w-full h-56 sm:w-80 sm:h-full sm:shrink-0 bg-sand overflow-hidden flex items-center justify-center" style="background-color: #ffffff">
+      <img
+        id="modal-image"
+        src=""
+        alt=""
+        class="w-full h-full object-contain hidden"
+        loading="eager"
+      />
+      <div id="modal-image-placeholder" class="w-full h-full items-center justify-center hidden">
+        <svg class="w-16 h-16 text-stone-light" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect x="6" y="6" width="36" height="36" rx="4" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="18" cy="18" r="4" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6 32l10-10 8 8 6-6 12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Detalles (columna derecha en desktop, abajo en mobile) -->
+    <div class="flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-3" style="background-color: #ffffff">
+      <!-- Categoría · Marca -->
+      <p id="modal-meta" class="text-xs font-medium text-stone-light uppercase tracking-wider"></p>
+
+      <!-- Nombre -->
+      <h2 id="modal-product-name" class="text-xl font-bold text-navy leading-snug pr-8"></h2>
+
+      <!-- Precio + Estado -->
+      <div class="flex items-center gap-3">
+        <span id="modal-price" class="text-xl font-bold text-ocean"></span>
+        <span id="modal-status" class="text-xs font-medium px-2 py-0.5 rounded-full"></span>
+      </div>
+
+      <!-- Descripción (bloques Strapi) -->
+      <div
+        id="modal-description"
+        class="text-sm text-stone leading-relaxed border-t border-sand-dark pt-3"
+      ></div>
+
+      <!-- Botón añadir al carrito -->
+      <button
+        id="modal-add-cart-btn"
+        class="mt-auto w-full px-4 py-3 bg-ocean text-warm-white text-sm font-medium rounded-md hover:bg-ocean-light transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+        type="button"
+      >
+        {ui.add_to_cart ?? ''}
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Conversor de bloques Strapi → HTML ────────────────────────────────────────
+
+  interface StrapiTextNode {
+    type: 'text';
+    text: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    code?: boolean;
+  }
+
+  interface StrapiBlock {
+    type: string;
+    level?: number;
+    format?: string;
+    children?: (StrapiTextNode | StrapiBlock)[];
+    text?: string;
+  }
+
+  function esc(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function childrenToHtml(children: (StrapiTextNode | StrapiBlock)[]): string {
+    if (!Array.isArray(children)) return '';
+    return children.map((child) => {
+      if (child.type === 'text') {
+        let t = esc((child as StrapiTextNode).text ?? '');
+        if ((child as StrapiTextNode).bold)      t = `<strong>${t}</strong>`;
+        if ((child as StrapiTextNode).italic)    t = `<em>${t}</em>`;
+        if ((child as StrapiTextNode).underline) t = `<u>${t}</u>`;
+        if ((child as StrapiTextNode).code)      t = `<code class="bg-sand px-1 rounded text-xs font-mono">${t}</code>`;
+        return t;
+      }
+      if (child.type === 'link') {
+        const inner = childrenToHtml((child as StrapiBlock).children ?? []);
+        return `<span class="text-ocean underline">${inner}</span>`;
+      }
+      return '';
+    }).join('');
+  }
+
+  function blocksToHtml(blocks: unknown): string {
+    if (!Array.isArray(blocks)) return '';
+    return blocks.map((block: StrapiBlock) => {
+      const inner = childrenToHtml(block.children ?? []);
+      switch (block.type) {
+        case 'paragraph':
+          return inner ? `<p class="mb-2 last:mb-0">${inner}</p>` : '';
+        case 'heading': {
+          const lvl = Math.min(Math.max(block.level ?? 2, 1), 6);
+          return `<h${lvl} class="font-semibold text-navy mb-1 mt-3 first:mt-0">${inner}</h${lvl}>`;
+        }
+        case 'list': {
+          const tag = block.format === 'ordered' ? 'ol' : 'ul';
+          const cls = block.format === 'ordered'
+            ? 'list-decimal list-inside mb-2 space-y-0.5'
+            : 'list-disc list-inside mb-2 space-y-0.5';
+          const items = (block.children ?? []).map((li: StrapiBlock) =>
+            `<li>${childrenToHtml(li.children ?? [])}</li>`
+          ).join('');
+          return `<${tag} class="${cls}">${items}</${tag}>`;
+        }
+        default: return '';
+      }
+    }).join('');
+  }
+
+  // ── Estado ───────────────────────────────────────────────────────────────────
+
+  let currentProduct: Record<string, unknown> | null = null;
+
+  const overlay    = document.getElementById('modal-overlay') as HTMLElement;
+  const imgEl      = document.getElementById('modal-image') as HTMLImageElement;
+  const imgPh      = document.getElementById('modal-image-placeholder') as HTMLElement;
+  const metaEl     = document.getElementById('modal-meta') as HTMLElement;
+  const nameEl     = document.getElementById('modal-product-name') as HTMLElement;
+  const priceEl    = document.getElementById('modal-price') as HTMLElement;
+  const statusEl   = document.getElementById('modal-status') as HTMLElement;
+  const descEl     = document.getElementById('modal-description') as HTMLElement;
+  const cartBtn    = document.getElementById('modal-add-cart-btn') as HTMLButtonElement;
+
+  function openModal(product: Record<string, unknown>): void {
+    currentProduct = product;
+
+    // Imagen
+    const imgUrl = product.imageUrl as string | undefined;
+    if (imgUrl) {
+      imgEl.src = imgUrl;
+      imgEl.alt = (product.imageAlt as string) ?? '';
+      imgEl.classList.remove('hidden');
+      imgPh.classList.remove('flex');
+      imgPh.classList.add('hidden');
+    } else {
+      imgEl.classList.add('hidden');
+      imgPh.classList.remove('hidden');
+      imgPh.classList.add('flex');
+    }
+
+    // Meta: categoría · marca
+    const parts = [product.category, product.brand].filter(Boolean) as string[];
+    metaEl.textContent = parts.join(' · ');
+
+    // Nombre
+    nameEl.textContent = (product.name as string) ?? '';
+
+    // Precio
+    priceEl.textContent = (product.priceFormatted as string) ?? '';
+
+    // Estado
+    const isAvail    = Boolean(product.isAvailable);
+    const statusText = (product.status as string) ?? '';
+    if (statusText) {
+      statusEl.textContent = statusText;
+      statusEl.className = `text-xs font-medium px-2 py-0.5 rounded-full ${
+        isAvail ? 'bg-ocean/10 text-ocean' : 'bg-sand-dark text-stone'
+      }`;
+    } else {
+      statusEl.textContent = '';
+    }
+
+    // Descripción
+    const html = blocksToHtml(product.description);
+    descEl.innerHTML = html;
+    descEl.classList.toggle('hidden', !html);
+
+    // Botón carrito
+    cartBtn.disabled = !isAvail;
+
+    // Mostrar overlay
+    overlay.classList.remove('opacity-0', 'invisible');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+
+    setTimeout(() => document.getElementById('modal-close-btn')?.focus(), 50);
+  }
+
+  function closeModal(): void {
+    overlay.classList.add('opacity-0', 'invisible');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    currentProduct = null;
+  }
+
+  // Cerrar al click en el overlay (fuera del panel)
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  document.getElementById('modal-close-btn')?.addEventListener('click', closeModal);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // Añadir al carrito desde el modal → cierra el modal y abre el carrito
+  cartBtn.addEventListener('click', () => {
+    if (!currentProduct || !currentProduct.isAvailable) return;
+    document.dispatchEvent(new CustomEvent('cart:add', { detail: currentProduct }));
+    closeModal();
+  });
+
+  // Escuchar el evento de apertura
+  document.addEventListener('product:open', ((e: CustomEvent) => {
+    openModal(e.detail as Record<string, unknown>);
+  }) as EventListener);
+</script>

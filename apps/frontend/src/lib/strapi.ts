@@ -137,6 +137,46 @@ export async function getBrands() {
   }
 }
 
+export async function getArticles(query: Record<string, string> = {}) {
+  try {
+    const res = await fetchFromStrapi<{ data: unknown[] }>(
+      'articles',
+      { populate: '*', sort: 'published_date:desc', ...query }
+    );
+    return res.data ?? [];
+  } catch (err) {
+    console.error('[Strapi] getArticles:', err);
+    return [];
+  }
+}
+
+export async function getArticle(slug: string) {
+  try {
+    const res = await fetchFromStrapi<{ data: unknown[] }>(
+      'articles',
+      { 'filters[slug][$eq]': slug, populate: '*' }
+    );
+    const items = res.data ?? [];
+    return items[0] ?? null;
+  } catch (err) {
+    console.error('[Strapi] getArticle:', err);
+    return null;
+  }
+}
+
+export async function getContactPage() {
+  try {
+    const res = await fetchFromStrapi<{ data: Record<string, unknown> }>(
+      'contact-page',
+      { populate: '*' }
+    );
+    return res.data ?? null;
+  } catch (err) {
+    console.error('[Strapi] getContactPage:', err);
+    return null;
+  }
+}
+
 // ── Media helpers ─────────────────────────────────────────────────────────────
 
 /**
@@ -147,9 +187,11 @@ export function getStrapiMediaUrl(
   media: { url?: string } | null | undefined
 ): string | null {
   if (!media?.url) return null;
-  return media.url.startsWith('http')
-    ? media.url
-    : `${STRAPI_URL}${media.url}`;
+  // Si ya es una URL absoluta externa, usarla tal cual
+  if (media.url.startsWith('http')) return media.url;
+  // Rutas locales de Strapi (/uploads/...) → URL relativa
+  // Nginx hace proxy de /uploads/ → http://localhost:1337/uploads/
+  return media.url;
 }
 
 /**

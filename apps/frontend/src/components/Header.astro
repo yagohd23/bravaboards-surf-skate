@@ -94,14 +94,58 @@ const navItems = g?.nav_menu ?? [];
         </ul>
       )}
 
-      <!-- Hamburger móvil -->
-      <button
-        id="mobile-menu-toggle"
-        class="md:hidden flex items-center justify-center w-10 h-10 rounded-md text-navy hover:text-ocean hover:bg-sand transition-colors"
-        aria-controls="mobile-menu"
-        aria-expanded="false"
-        aria-label={g?.ui_labels?.mobile_menu_label ?? ''}
-      >
+      <!-- Acciones: favoritos + carrito + hamburger -->
+      <div class="flex items-center gap-1">
+
+        <!-- Icono favoritos -->
+        <a
+          href="/favoritos"
+          class="relative flex items-center justify-center w-10 h-10 rounded-md text-navy hover:text-coral hover:bg-sand transition-colors"
+          aria-label={g?.ui_labels?.favorites_title ?? ''}
+          id="fav-header-link"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.27 2 8.5 2 5.41 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.41 22 8.5c0 3.77-3.4 6.86-8.55 11.54L12 21.35z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span
+            id="fav-badge"
+            class="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 bg-coral text-warm-white text-[10px] font-bold rounded-full hidden items-center justify-center px-1"
+            aria-hidden="true"
+          ></span>
+        </a>
+
+        <!-- Icono carrito (visible en todos los tamaños) -->
+        <button
+          class="relative flex items-center justify-center w-10 h-10 rounded-md text-navy hover:text-ocean hover:bg-sand transition-colors"
+          data-cart-open
+          type="button"
+          aria-label={g?.ui_labels?.cart_title ?? ''}
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 6h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M16 10a4 4 0 01-8 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span
+            id="cart-badge"
+            class="absolute -top-0.5 -right-0.5 min-w-4.5 h-4.5 bg-coral text-warm-white text-[10px] font-bold rounded-full hidden items-center justify-center px-1"
+            aria-hidden="true"
+          ></span>
+        </button>
+
+        <!-- Hamburger móvil -->
+        <button
+          id="mobile-menu-toggle"
+          class="md:hidden flex items-center justify-center w-10 h-10 rounded-md text-navy hover:text-ocean hover:bg-sand transition-colors"
+          aria-controls="mobile-menu"
+          aria-expanded="false"
+          aria-label={g?.ui_labels?.mobile_menu_label ?? ''}
+        >
         <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none" aria-hidden="true" id="icon-open">
           <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
@@ -109,6 +153,8 @@ const navItems = g?.nav_menu ?? [];
           <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </button>
+
+      </div> <!-- /acciones -->
     </nav>
   </div>
 
@@ -149,6 +195,77 @@ const navItems = g?.nav_menu ?? [];
 </header>
 
 <script>
+  // ── Badge de favoritos ───────────────────────────────────────────────────────
+  function updateFavBadge(count: number): void {
+    const badge = document.getElementById('fav-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }
+
+  try {
+    const favIds = JSON.parse(localStorage.getItem('bravaboards_favorites') ?? '[]') as number[];
+    updateFavBadge(favIds.length);
+  } catch { /* ignorar */ }
+
+  // Actualizar badge al cambiar favoritos (misma pestaña: storage no dispara, usamos click)
+  document.addEventListener('click', (e) => {
+    if ((e.target as Element).closest('[data-fav-btn]')) {
+      setTimeout(() => {
+        try {
+          const ids = JSON.parse(localStorage.getItem('bravaboards_favorites') ?? '[]') as number[];
+          updateFavBadge(ids.length);
+        } catch { /* ignorar */ }
+      }, 0);
+    }
+  });
+
+  // Sincronización entre pestañas
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'bravaboards_favorites') {
+      try {
+        const ids = JSON.parse(e.newValue ?? '[]') as number[];
+        updateFavBadge(ids.length);
+      } catch { /* ignorar */ }
+    }
+  });
+
+  // ── Badge del carrito ────────────────────────────────────────────────────────
+  function updateCartBadge(count: number): void {
+    const badge = document.getElementById('cart-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }
+
+  // Leer contador del carrito desde localStorage al cargar la página
+  try {
+    const stored = JSON.parse(localStorage.getItem('bravaboards_cart') ?? '[]') as { quantity: number }[];
+    updateCartBadge(stored.reduce((s, i) => s + i.quantity, 0));
+  } catch { /* ignorar */ }
+
+  // Actualizar badge cuando el carrito cambia
+  document.addEventListener('cart:change', ((e: CustomEvent) => {
+    updateCartBadge((e.detail as { count: number }).count);
+  }) as EventListener);
+
+  // Abrir el drawer del carrito al hacer click en el icono
+  document.querySelector('[data-cart-open]')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('cart:open'));
+  });
+
   // ── Hamburger toggle ──
   const toggle = document.getElementById('mobile-menu-toggle');
   const menu   = document.getElementById('mobile-menu');

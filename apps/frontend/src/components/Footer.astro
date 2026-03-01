@@ -133,12 +133,51 @@ const socials = contact.socials ?? [];
     </div>
   </div>
 
-  <!-- Copyright -->
-  {footer?.copyright && (
-    <div class="border-t border-stone/20">
-      <div class="container py-4">
-        <p class="text-xs text-stone/60 text-center">{footer.copyright}</p>
+  <!-- Copyright + aviso educativo -->
+  <div class="border-t border-stone/20">
+    <div class="container py-4 flex items-center justify-center gap-2">
+      {footer?.copyright && (
+        <p class="text-xs text-stone/60">{footer.copyright}</p>
+      )}
+
+      <!-- Icono de info con popup de aviso educativo -->
+      <div class="relative" id="edu-info-wrapper">
+        <button
+          id="edu-info-btn"
+          type="button"
+          aria-label="Información sobre el proyecto"
+          aria-expanded="false"
+          class="flex items-center justify-center w-4 h-4 rounded-full border border-stone/40 text-stone/60 hover:text-warm-white hover:border-stone-light transition-colors shrink-0 text-[10px] font-bold leading-none select-none"
+        >i</button>
+
+        <div
+          id="edu-info-popup"
+          role="status"
+          class="hidden absolute bottom-full right-1/2 translate-x-1/2 mb-3 w-72 bg-warm-white text-navy text-xs leading-relaxed p-4 rounded-xl shadow-xl z-50"
+        >
+          <p>Este proyecto es puramente educativo con fines de aprendizaje personal, no se realizan envíos reales ni se monetiza ninguna parte de este proyecto.</p>
+          <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 block w-2.5 h-2.5 bg-warm-white rotate-45" aria-hidden="true"></span>
+        </div>
       </div>
     </div>
-  )}
+  </div>
 </footer>
+
+<script>
+  const btn   = document.getElementById('edu-info-btn')   as HTMLButtonElement | null;
+  const popup = document.getElementById('edu-info-popup') as HTMLElement | null;
+
+  if (btn && popup) {
+    btn.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      const opening = popup.classList.contains('hidden');
+      popup.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', String(opening));
+    });
+
+    document.addEventListener('click', () => {
+      popup.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+</script>

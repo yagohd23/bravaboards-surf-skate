@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
+    "predev": "fuser -k 4321/tcp 4322/tcp 2>/dev/null; true",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",

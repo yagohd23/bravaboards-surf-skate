@@ -1,0 +1,517 @@
+---
+/**
+ * Página de Contacto — BravaBoards
+ * Ruta: /contacto
+ * Contenido 100% desde Strapi (contact-page single type).
+ * Formulario con validación client-side y envío a Strapi API (contact-messages).
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getGlobalData, getContactPage, getStrapiMediaUrl, STRAPI_URL } from '../lib/strapi';
+import type { GlobalData, ContactPage, ContactSocial, UILabels } from '../types/strapi';
+
+const [rawGlobal, rawContact] = await Promise.all([
+  getGlobalData(),
+  getContactPage(),
+]);
+
+const global   = rawGlobal   as GlobalData   | null;
+const contact  = rawContact  as ContactPage  | null;
+const ui: UILabels = global?.ui_labels ?? {};
+
+const seo = {
+  title:       contact?.seo_title       ?? `Contacto — ${global?.site_name ?? ''}`,
+  description: contact?.seo_description ?? global?.seo_description ?? null,
+  image:       global?.seo_image        ?? null,
+  canonical:   contact?.seo_canonical   ?? '/contacto',
+  robots:      contact?.seo_robots      ?? global?.seo_robots ?? 'index, follow',
+};
+
+const faviconUrl = getStrapiMediaUrl(global?.favicon);
+
+// Campos del formulario con fallbacks sensatos
+const fieldName    = contact?.form_field_name_label    ?? 'Nombre completo';
+const fieldEmail   = contact?.form_field_email_label   ?? 'Email';
+const fieldPhone   = contact?.form_field_phone_label   ?? 'Teléfono (opcional)';
+const fieldSubject = contact?.form_field_subject_label ?? 'Asunto';
+const fieldMsg     = contact?.form_field_message_label ?? 'Mensaje';
+const btnLabel     = contact?.form_submit_label        ?? 'Enviar mensaje';
+const btnLoading   = contact?.form_loading_label       ?? 'Enviando...';
+const msgSuccess   = contact?.form_success_message     ?? '¡Mensaje enviado!';
+const msgError     = contact?.form_error_message       ?? 'Error al enviar. Inténtalo de nuevo.';
+
+const subjectOptions: string[] = contact?.form_subject_options ?? [
+  'Consulta sobre un producto',
+  'Pedido',
+  'Devolución',
+  'Otro',
+];
+
+const socials: ContactSocial[] = contact?.contact_socials ?? [];
+
+// URL del endpoint de Strapi para enviar mensajes (embebida en build time)
+const formEndpoint = `${STRAPI_URL}/api/contact-messages`;
+
+// Dirección como líneas separadas para el renderizado
+const addressLines = contact?.contact_address
+  ? contact.contact_address.split('\n').filter(Boolean)
+  : [];
+---
+
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={global?.theme ?? null} ui={ui}>
+  <!-- Schema JSON-LD ContactPage -->
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    "name": seo.title,
+    ...(seo.description ? { "description": seo.description } : {}),
+    "url": seo.canonical,
+  })} />
+
+  <Header global={global} />
+
+  <main id="main-content">
+
+    <!-- ── Hero ────────────────────────────────────────────────────────────── -->
+    <div class="bg-navy py-14 sm:py-20">
+      <div class="container">
+        <h1 class="text-3xl sm:text-4xl font-bold text-warm-white tracking-tight">
+          {contact?.hero_title ?? ''}
+        </h1>
+        {contact?.hero_subtitle && (
+          <p class="mt-3 text-base sm:text-lg text-stone-light max-w-xl leading-relaxed">
+            {contact.hero_subtitle}
+          </p>
+        )}
+      </div>
+    </div>
+
+    <!-- ── Contenido principal ──────────────────────────────────────────────── -->
+    <section class="py-12 sm:py-16">
+      <div class="container">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14">
+
+          <!-- ── Formulario (3/5 del ancho en desktop) ──────────────────────── -->
+          <div class="lg:col-span-3">
+            <form
+              id="contact-form"
+              novalidate
+              data-endpoint={formEndpoint}
+              data-btn-label={btnLabel}
+              data-btn-loading={btnLoading}
+              data-msg-success={msgSuccess}
+              data-msg-error={msgError}
+              class="space-y-5"
+            >
+              <!-- Nombre -->
+              <div>
+                <label for="cf-name" class="block text-sm font-medium text-navy mb-1.5">
+                  {fieldName} <span class="text-coral" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="cf-name"
+                  name="name"
+                  type="text"
+                  autocomplete="name"
+                  required
+                  class="w-full px-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors"
+                  style="background-color: #ffffff"
+                />
+                <p class="cf-error hidden mt-1 text-xs text-coral" data-for="name"></p>
+              </div>
+
+              <!-- Email + Teléfono (dos columnas en sm+) -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label for="cf-email" class="block text-sm font-medium text-navy mb-1.5">
+                    {fieldEmail} <span class="text-coral" aria-hidden="true">*</span>
+                  </label>
+                  <input
+                    id="cf-email"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    class="w-full px-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors"
+                    style="background-color: #ffffff"
+                  />
+                  <p class="cf-error hidden mt-1 text-xs text-coral" data-for="email"></p>
+                </div>
+                <div>
+                  <label for="cf-phone" class="block text-sm font-medium text-navy mb-1.5">
+                    {fieldPhone}
+                  </label>
+                  <input
+                    id="cf-phone"
+                    name="phone"
+                    type="tel"
+                    autocomplete="tel"
+                    class="w-full px-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors"
+                    style="background-color: #ffffff"
+                  />
+                </div>
+              </div>
+
+              <!-- Asunto -->
+              <div>
+                <label for="cf-subject" class="block text-sm font-medium text-navy mb-1.5">
+                  {fieldSubject} <span class="text-coral" aria-hidden="true">*</span>
+                </label>
+                <div class="relative">
+                  <select
+                    id="cf-subject"
+                    name="subject"
+                    required
+                    class="w-full px-4 py-2.5 pr-10 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors appearance-none"
+                    style="background-color: #ffffff"
+                  >
+                    <option value="" disabled selected></option>
+                    {subjectOptions.map(opt => (
+                      <option value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <!-- Chevron personalizado -->
+                  <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-light" aria-hidden="true">
+                    <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                </div>
+                <p class="cf-error hidden mt-1 text-xs text-coral" data-for="subject"></p>
+              </div>
+
+              <!-- Mensaje -->
+              <div>
+                <label for="cf-message" class="block text-sm font-medium text-navy mb-1.5">
+                  {fieldMsg} <span class="text-coral" aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  id="cf-message"
+                  name="message"
+                  required
+                  rows={5}
+                  class="w-full px-4 py-2.5 text-sm bg-warm-white border border-sand-dark rounded-lg text-navy placeholder-stone-light focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean transition-colors resize-y"
+                  style="background-color: #ffffff"
+                ></textarea>
+                <p class="cf-error hidden mt-1 text-xs text-coral" data-for="message"></p>
+              </div>
+
+              <!-- Botón envío -->
+              <button
+                id="cf-submit"
+                type="submit"
+                class="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 bg-ocean text-warm-white text-sm font-medium rounded-md hover:bg-ocean-light transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span id="cf-btn-text">{btnLabel}</span>
+                <!-- Spinner (oculto por defecto) -->
+                <svg id="cf-spinner" class="hidden w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              </button>
+
+              <!-- Feedback success / error -->
+              <div id="cf-feedback" class="hidden rounded-lg px-4 py-3 text-sm font-medium" role="alert" aria-live="polite"></div>
+            </form>
+          </div>
+
+          <!-- ── Información de contacto (2/5 del ancho en desktop) ─────────── -->
+          <aside class="lg:col-span-2 space-y-8">
+
+            <!-- Datos de contacto -->
+            <div class="space-y-5">
+
+              {contact?.contact_email && (
+                <a
+                  href={`mailto:${contact.contact_email}`}
+                  class="flex items-start gap-4 group"
+                >
+                  <span class="mt-0.5 flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-ocean/10 text-ocean group-hover:bg-ocean group-hover:text-warm-white transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M3 4h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5"/>
+                      <path d="M2 5l8 7 8-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="text-xs font-medium text-stone-light uppercase tracking-wider mb-0.5">Email</p>
+                    <p class="text-sm font-medium text-navy group-hover:text-ocean transition-colors">{contact.contact_email}</p>
+                  </div>
+                </a>
+              )}
+
+              {contact?.contact_phone && (
+                <a
+                  href={`tel:${contact.contact_phone.replace(/\s/g, '')}`}
+                  class="flex items-start gap-4 group"
+                >
+                  <span class="mt-0.5 flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-ocean/10 text-ocean group-hover:bg-ocean group-hover:text-warm-white transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M6.01 3.5C6.37 5.05 7 6.45 7.86 7.6L5.7 9.76a13.3 13.3 0 0 0 4.53 4.53l2.16-2.16c1.15.86 2.55 1.49 4.1 1.85v3.5A1.5 1.5 0 0 1 15 19C7.27 19 1 12.73 1 5a1.5 1.5 0 0 1 1.5-1.5h3.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="text-xs font-medium text-stone-light uppercase tracking-wider mb-0.5">Teléfono</p>
+                    <p class="text-sm font-medium text-navy group-hover:text-ocean transition-colors">{contact.contact_phone}</p>
+                  </div>
+                </a>
+              )}
+
+              {addressLines.length > 0 && (
+                <div class="flex items-start gap-4">
+                  <span class="mt-0.5 flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-ocean/10 text-ocean">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M10 1a6 6 0 0 1 6 6c0 4-6 12-6 12S4 11 4 7a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="1.5"/>
+                      <circle cx="10" cy="7" r="2" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="text-xs font-medium text-stone-light uppercase tracking-wider mb-0.5">Dirección</p>
+                    {addressLines.map(line => (
+                      <p class="text-sm font-medium text-navy">{line}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {contact?.contact_hours && (
+                <div class="flex items-start gap-4">
+                  <span class="mt-0.5 flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-ocean/10 text-ocean">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/>
+                      <path d="M10 5v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="text-xs font-medium text-stone-light uppercase tracking-wider mb-0.5">Horario</p>
+                    <p class="text-sm font-medium text-navy">{contact.contact_hours}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <!-- Redes sociales -->
+            {socials.length > 0 && (
+              <div>
+                <p class="text-xs font-medium text-stone-light uppercase tracking-wider mb-4">Síguenos</p>
+                <div class="flex flex-wrap gap-3">
+                  {socials.map((s: ContactSocial) => (
+                    <a
+                      href={s.url}
+                      aria-label={s.label}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex items-center justify-center w-10 h-10 rounded-full border border-sand-dark text-stone hover:text-ocean hover:border-ocean transition-colors"
+                    >
+                      {s.platform === 'instagram' && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                          <circle cx="12" cy="12" r="4"/>
+                          <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/>
+                        </svg>
+                      )}
+                      {s.platform === 'facebook' && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+                        </svg>
+                      )}
+                      {s.platform === 'tiktok' && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.07a8.16 8.16 0 0 0 4.77 1.52V7.15a4.85 4.85 0 0 1-1-.46z"/>
+                        </svg>
+                      )}
+                      {s.platform === 'youtube' && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                          <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.41 19.54C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/>
+                          <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/>
+                        </svg>
+                      )}
+                      {s.platform === 'twitter' && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                      )}
+                      {!['instagram','facebook','tiktok','youtube','twitter'].includes(s.platform) && (
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"/>
+                          <path d="M12 8v8M8 12h8" stroke-linecap="round"/>
+                        </svg>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <!-- Separador decorativo con mapa/ubicación visual -->
+            {addressLines.length > 0 && (
+              <div class="rounded-xl overflow-hidden border border-sand-dark bg-sand aspect-video flex items-center justify-center">
+                <div class="text-center p-6">
+                  <svg class="w-10 h-10 text-ocean/40 mx-auto mb-2" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                    <circle cx="24" cy="20" r="8" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M24 4C15.16 4 8 11.16 8 20c0 12 16 28 16 28s16-16 16-28c0-8.84-7.16-16-16-16z" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="24" cy="20" r="3" fill="currentColor" opacity="0.4"/>
+                  </svg>
+                  <p class="text-sm text-stone-light leading-relaxed">
+                    {addressLines[0]}<br/>
+                    {addressLines[1] ?? ''}
+                  </p>
+                </div>
+              </div>
+            )}
+
+          </aside>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <Footer global={global} />
+</BaseLayout>
+
+<script>
+  const form     = document.getElementById('contact-form') as HTMLFormElement | null;
+  const submitBtn = document.getElementById('cf-submit')   as HTMLButtonElement | null;
+  const btnText  = document.getElementById('cf-btn-text')  as HTMLElement | null;
+  const spinner  = document.getElementById('cf-spinner')   as HTMLElement | null;
+  const feedback = document.getElementById('cf-feedback')  as HTMLElement | null;
+
+  if (!form || !submitBtn || !btnText || !spinner || !feedback) {
+    // Elementos no encontrados — salir silenciosamente
+  } else {
+    const endpoint   = form.dataset.endpoint   ?? '';
+    const lblDefault = form.dataset.btnLabel   ?? 'Enviar';
+    const lblLoading = form.dataset.btnLoading ?? 'Enviando...';
+    const msgOk      = form.dataset.msgSuccess ?? '¡Mensaje enviado!';
+    const msgErr     = form.dataset.msgError   ?? 'Error al enviar.';
+
+    // ── Validación ──────────────────────────────────────────────────────────
+
+    function showFieldError(name: string, text: string): void {
+      const el = form!.querySelector<HTMLElement>(`[data-for="${name}"]`);
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove('hidden');
+      const input = form!.querySelector<HTMLElement>(`[name="${name}"]`);
+      input?.classList.add('border-coral', '!border-coral');
+      input?.classList.remove('border-sand-dark');
+    }
+
+    function clearErrors(): void {
+      form!.querySelectorAll<HTMLElement>('.cf-error').forEach(el => {
+        el.textContent = '';
+        el.classList.add('hidden');
+      });
+      form!.querySelectorAll<HTMLElement>('[name]').forEach(el => {
+        el.classList.remove('border-coral', '!border-coral');
+        el.classList.add('border-sand-dark');
+      });
+    }
+
+    function validateForm(data: FormData): boolean {
+      let valid = true;
+      const name    = (data.get('name')    as string ?? '').trim();
+      const email   = (data.get('email')   as string ?? '').trim();
+      const subject = (data.get('subject') as string ?? '').trim();
+      const message = (data.get('message') as string ?? '').trim();
+
+      if (!name) {
+        showFieldError('name', 'Por favor, introduce tu nombre.');
+        valid = false;
+      }
+      if (!email) {
+        showFieldError('email', 'Por favor, introduce tu email.');
+        valid = false;
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showFieldError('email', 'El formato del email no es válido.');
+        valid = false;
+      }
+      if (!subject) {
+        showFieldError('subject', 'Por favor, selecciona un asunto.');
+        valid = false;
+      }
+      if (!message) {
+        showFieldError('message', 'Por favor, escribe tu mensaje.');
+        valid = false;
+      }
+      return valid;
+    }
+
+    // ── Estado del botón ────────────────────────────────────────────────────
+
+    function setLoading(loading: boolean): void {
+      submitBtn!.disabled = loading;
+      btnText!.textContent = loading ? lblLoading : lblDefault;
+      spinner!.classList.toggle('hidden', !loading);
+    }
+
+    function showFeedback(ok: boolean, text: string): void {
+      feedback!.textContent = text;
+      feedback!.classList.remove('hidden', 'bg-ocean/10', 'text-ocean', 'bg-coral/10', 'text-coral');
+      if (ok) {
+        feedback!.classList.add('bg-ocean/10', 'text-ocean');
+      } else {
+        feedback!.classList.add('bg-coral/10', 'text-coral');
+      }
+    }
+
+    // ── Submit ──────────────────────────────────────────────────────────────
+
+    form.addEventListener('submit', async (e: Event) => {
+      e.preventDefault();
+      clearErrors();
+      feedback.classList.add('hidden');
+
+      const data = new FormData(form);
+      if (!validateForm(data)) return;
+
+      setLoading(true);
+
+      const payload = {
+        data: {
+          name:    (data.get('name')    as string).trim(),
+          email:   (data.get('email')   as string).trim(),
+          phone:   (data.get('phone')   as string ?? '').trim() || undefined,
+          subject: (data.get('subject') as string).trim(),
+          message: (data.get('message') as string).trim(),
+        },
+      };
+
+      try {
+        const res = await fetch(endpoint, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          showFeedback(true, msgOk);
+          form.reset();
+        } else {
+          const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+          const detail = (body as { error?: { message?: string } })?.error?.message ?? msgErr;
+          showFeedback(false, detail);
+        }
+      } catch {
+        showFeedback(false, msgErr);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Limpiar error de campo al modificar el input
+    form.querySelectorAll<HTMLElement>('[name]').forEach(input => {
+      input.addEventListener('input', () => {
+        const name = (input as HTMLInputElement).name;
+        const errEl = form!.querySelector<HTMLElement>(`[data-for="${name}"]`);
+        if (errEl) {
+          errEl.textContent = '';
+          errEl.classList.add('hidden');
+        }
+        input.classList.remove('border-coral', '!border-coral');
+        input.classList.add('border-sand-dark');
+      });
+    });
+  }
+</script>

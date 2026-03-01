@@ -7,6 +7,7 @@
     "build": "strapi build",
     "console": "strapi console",
     "deploy": "strapi deploy",
+    "predev": "fuser -k 1337/tcp 2>/dev/null; sleep 1; true",
     "dev": "strapi develop",
     "develop": "strapi develop",
     "start": "strapi start",

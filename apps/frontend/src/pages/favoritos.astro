@@ -1,0 +1,137 @@
+---
+/**
+ * Página de favoritos — BravaBoards
+ * Ruta: /favoritos
+ *
+ * Los favoritos viven en localStorage (bravaboards_favorites → number[]).
+ * En build time se prerrenderizan TODOS los ProductCards como hidden.
+ * El script client-side lee localStorage y muestra solo los que coinciden.
+ * Al quitar un favorito en esta misma página la tarjeta desaparece.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { getGlobalData, getProducts, getStrapiMediaUrl } from '../lib/strapi';
+import type { GlobalData, Product, UILabels } from '../types/strapi';
+
+const [rawGlobal, rawProducts] = await Promise.all([
+  getGlobalData(),
+  getProducts({ 'pagination[limit]': '500', 'sort': 'name:asc' }),
+]);
+
+const global   = rawGlobal   as GlobalData | null;
+const products = rawProducts as Product[]  ?? [];
+const ui: UILabels = global?.ui_labels ?? {};
+
+const faviconUrl = getStrapiMediaUrl(global?.favicon);
+
+const seo = {
+  title:       `${ui.favorites_title ?? 'Favoritos'} — ${global?.site_name ?? ''}`,
+  description: global?.seo_description ?? null,
+  image:       global?.seo_image       ?? null,
+  canonical:   null,
+  robots:      'noindex, nofollow',
+};
+---
+
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={global?.theme ?? null} ui={ui}>
+  <Header global={global} />
+
+  <main id="main-content" class="flex-1">
+    <section class="py-10">
+      <div class="container">
+
+        <!-- Cabecera de página -->
+        <div class="flex items-center gap-3 mb-10">
+          <svg class="w-6 h-6 text-coral shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.27 2 8.5 2 5.41 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.41 22 8.5c0 3.77-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <h1 class="text-2xl font-bold text-navy">{ui.favorites_title ?? ''}</h1>
+        </div>
+
+        <!--
+          Grid de productos: cada tarjeta empieza hidden.
+          El script cliente-side muestra las que están en bravaboards_favorites.
+        -->
+        <div
+          id="fav-grid"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+        >
+          {products.map(product => (
+            <div class="hidden" data-fav-card data-product-id={product.id}>
+              <ProductCard product={product} ui={ui} />
+            </div>
+          ))}
+        </div>
+
+        <!-- Estado vacío (mostrado cuando no hay favoritos) -->
+        <div id="fav-empty" class="hidden text-center py-20">
+          <svg
+            class="w-16 h-16 text-stone-light mx-auto mb-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.27 2 8.5 2 5.41 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.41 22 8.5c0 3.77-3.4 6.86-8.55 11.54L12 21.35z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <p class="text-stone max-w-sm mx-auto leading-relaxed">
+            {ui.favorites_empty ?? ''}
+          </p>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <Footer global={global} />
+</BaseLayout>
+
+<script>
+  const FAV_KEY = 'bravaboards_favorites';
+
+  function loadFavs(): number[] {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]'); } catch { return []; }
+  }
+
+  // Muestra las tarjetas cuyos IDs están en favoritos; oculta las demás.
+  function render(): void {
+    const ids   = loadFavs();
+    const grid  = document.getElementById('fav-grid')!;
+    const empty = document.getElementById('fav-empty')!;
+    let visible = 0;
+
+    grid.querySelectorAll<HTMLElement>('[data-fav-card]').forEach((wrapper) => {
+      const id   = Number(wrapper.dataset.productId);
+      const show = ids.includes(id);
+      wrapper.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+
+    empty.classList.toggle('hidden', visible > 0);
+    grid.classList.toggle('hidden',  visible === 0);
+  }
+
+  // Render inicial
+  render();
+
+  // Cuando el corazón de una tarjeta se pulsa en esta página,
+  // el script de ProductCard actualiza localStorage y la UI del corazón.
+  // Aquí escuchamos el click para re-renderizar y ocultar la tarjeta si procede.
+  document.addEventListener('click', (e) => {
+    if ((e.target as Element).closest('[data-fav-btn]')) {
+      // Pequeño delay para que ProductCard haya actualizado localStorage primero
+      setTimeout(render, 0);
+    }
+  });
+
+  // Sincronización entre pestañas
+  window.addEventListener('storage', (e) => {
+    if (e.key === FAV_KEY) render();
+  });
+</script>

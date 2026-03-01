@@ -2,30 +2,79 @@
 /**
  * CategoryCards — BravaBoards
  * 4 tarjetas de categoría en el home. Cada una lleva a /[slug].
- * Imagen de fondo desde Strapi. Textos desde ui_labels.
+ * Todos los colores y estilos vienen de Strapi → Home → categories_styles (JSON).
+ *
+ * Campos categories_styles disponibles en Strapi (todos opcionales — tienen fallback):
+ *   section_bg           Color de fondo de la sección.                Default: #FDFAF5
+ *   title_color          Color del título de la sección.              Default: #0D1F33
+ *   subtitle_color       Color del subtítulo de la sección.           Default: #6B7280
+ *   card_fallback_from   Gradiente tarjeta cuando no hay imagen (inicio). Default: #0077B6
+ *   card_fallback_to     Gradiente tarjeta cuando no hay imagen (fin).    Default: #0D1F33
+ *   overlay_from         Overlay tarjeta — parte inferior (rgba).    Default: rgba(13,31,51,0.88)
+ *   overlay_to           Overlay tarjeta — parte superior.           Default: transparent
+ *   card_title_color     Color del nombre de la categoría.           Default: #FDFAF5
+ *   view_all_color       Color del texto "Ver todos" / CTA tarjeta.  Default: #C5C7C9
+ *   view_all_hover_color Color del CTA tarjeta en hover.             Default: #FDFAF5
+ *
+ * Textos:
+ *   ui.view_all   → Strapi → Global → ui_labels → view_all
+ *                   El editor incluye el símbolo de flecha si lo desea (ej: "Explorar →")
  */
-import type { Category, UILabels } from '../types/strapi';
+import type { Category, UILabels, CategoriesStyles } from '../types/strapi';
 import { getStrapiMediaUrl, getStrapiMediaAlt } from '../lib/strapi';
 
 interface Props {
   categories: Category[];
   ui: UILabels;
+  title?: string | null;
+  subtitle?: string | null;
+  styles?: CategoriesStyles | null;
 }
 
-const { categories, ui } = Astro.props;
+const { categories, ui, title, subtitle, styles } = Astro.props;
+
+// ── Estilos dinámicos desde Strapi → CSS custom properties ───────────────────
+const s = styles ?? {};
+
+const cssVars = [
+  `--cats-bg:${s.section_bg ?? '#FDFAF5'}`,
+  `--cats-title:${s.title_color ?? '#0D1F33'}`,
+  `--cats-subtitle:${s.subtitle_color ?? '#6B7280'}`,
+  `--cats-card-from:${s.card_fallback_from ?? '#0077B6'}`,
+  `--cats-card-to:${s.card_fallback_to ?? '#0D1F33'}`,
+  `--cats-overlay-from:${s.overlay_from ?? 'rgba(13,31,51,0.88)'}`,
+  `--cats-overlay-to:${s.overlay_to ?? 'transparent'}`,
+  `--cats-card-title:${s.card_title_color ?? '#FDFAF5'}`,
+  `--cats-view-all:${s.view_all_color ?? '#C5C7C9'}`,
+  `--cats-view-all-hover:${s.view_all_hover_color ?? '#FDFAF5'}`,
+].join(';');
 ---
 
 {categories.length > 0 && (
-  <section class="py-16 bg-warm-white">
+  <section class="cats-section py-16" style={cssVars}>
     <div class="container">
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+
+      {title && (
+        <div class="text-center mb-10 md:mb-14">
+          <h2 class="cats-title text-3xl sm:text-4xl font-bold tracking-tight">
+            {title}
+          </h2>
+          {subtitle && (
+            <p class="cats-subtitle mt-3 max-w-xl mx-auto text-lg leading-relaxed">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div class="grid grid-cols-2 gap-4 sm:gap-6">
         {categories.map(cat => {
-          const imgUrl = getStrapiMediaUrl(cat.images);
-          const imgAlt = getStrapiMediaAlt(cat.images, cat.name);
+          const imgUrl = getStrapiMediaUrl(cat.card_image ?? cat.images);
+          const imgAlt = getStrapiMediaAlt(cat.card_image ?? cat.images, cat.name);
           return (
             <a
               href={`/${cat.slug}`}
-              class="group relative flex aspect-[3/4] rounded-2xl overflow-hidden bg-navy shadow-md hover:shadow-xl transition-shadow duration-300"
+              class="cat-card group relative flex aspect-video rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300"
               aria-label={cat.name}
             >
               {imgUrl
@@ -36,24 +85,20 @@ const { categories, ui } = Astro.props;
                     loading="lazy"
                     decoding="async"
                   />
-                : <div class="absolute inset-0 bg-gradient-to-br from-ocean to-navy"></div>
+                : <div class="cat-card-fallback absolute inset-0" aria-hidden="true"></div>
               }
 
               <!-- Overlay -->
-              <div
-                class="absolute inset-0"
-                style="background: linear-gradient(to top, rgba(13,31,51,0.88) 0%, rgba(13,31,51,0.35) 55%, transparent 100%);"
-                aria-hidden="true"
-              ></div>
+              <div class="cat-overlay absolute inset-0" aria-hidden="true"></div>
 
               <!-- Texto -->
               <div class="relative mt-auto p-5">
-                <h3 class="text-warm-white text-xl font-bold tracking-tight leading-snug">
+                <h3 class="cat-card-title text-xl font-bold tracking-tight leading-snug">
                   {cat.name}
                 </h3>
                 {ui.view_all && (
-                  <span class="text-stone-light text-sm group-hover:text-warm-white transition-colors duration-200">
-                    {ui.view_all} →
+                  <span class="cat-view-all text-sm transition-colors duration-200">
+                    {ui.view_all}
                   </span>
                 )}
               </div>
@@ -61,6 +106,56 @@ const { categories, ui } = Astro.props;
           );
         })}
       </div>
+
     </div>
   </section>
 )}
+
+<style>
+  /* Todos los valores de color leen las CSS vars establecidas dinámicamente
+     desde Strapi. Los fallbacks son los valores por defecto del diseño. */
+
+  .cats-section {
+    background-color: var(--cats-bg, #FDFAF5);
+  }
+
+  .cats-title {
+    color: var(--cats-title, #0D1F33);
+  }
+
+  .cats-subtitle {
+    color: var(--cats-subtitle, #6B7280);
+  }
+
+  .cat-card {
+    background-color: var(--cats-card-to, #0D1F33);
+  }
+
+  .cat-card-fallback {
+    background: linear-gradient(
+      to bottom right,
+      var(--cats-card-from, #0077B6),
+      var(--cats-card-to,   #0D1F33)
+    );
+  }
+
+  .cat-overlay {
+    background: linear-gradient(
+      to top,
+      var(--cats-overlay-from, rgba(13,31,51,0.88)) 0%,
+      var(--cats-overlay-to,   transparent)          100%
+    );
+  }
+
+  .cat-card-title {
+    color: var(--cats-card-title, #FDFAF5);
+  }
+
+  .cat-view-all {
+    color: var(--cats-view-all, #C5C7C9);
+  }
+
+  .cat-card:hover .cat-view-all {
+    color: var(--cats-view-all-hover, #FDFAF5);
+  }
+</style>

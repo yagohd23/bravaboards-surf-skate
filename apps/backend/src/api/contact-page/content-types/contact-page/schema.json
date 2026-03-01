@@ -1,0 +1,80 @@
+{
+  "kind": "singleType",
+  "collectionName": "contact_pages",
+  "info": {
+    "singularName": "contact-page",
+    "pluralName": "contact-pages",
+    "displayName": "Contact Page"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "hero_title": {
+      "type": "string",
+      "required": true
+    },
+    "hero_subtitle": {
+      "type": "text"
+    },
+    "contact_email": {
+      "type": "email"
+    },
+    "contact_phone": {
+      "type": "string"
+    },
+    "contact_address": {
+      "type": "text"
+    },
+    "contact_hours": {
+      "type": "string"
+    },
+    "contact_socials": {
+      "type": "json"
+    },
+    "form_submit_label": {
+      "type": "string"
+    },
+    "form_loading_label": {
+      "type": "string"
+    },
+    "form_success_message": {
+      "type": "text"
+    },
+    "form_error_message": {
+      "type": "text"
+    },
+    "form_field_name_label": {
+      "type": "string"
+    },
+    "form_field_email_label": {
+      "type": "string"
+    },
+    "form_field_phone_label": {
+      "type": "string"
+    },
+    "form_field_subject_label": {
+      "type": "string"
+    },
+    "form_field_message_label": {
+      "type": "string"
+    },
+    "form_subject_options": {
+      "type": "json"
+    },
+    "seo_title": {
+      "type": "string"
+    },
+    "seo_description": {
+      "type": "text"
+    },
+    "seo_robots": {
+      "type": "string",
+      "default": "index, follow"
+    },
+    "seo_canonical": {
+      "type": "string"
+    }
+  }
+}

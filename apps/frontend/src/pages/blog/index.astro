@@ -1,0 +1,246 @@
+---
+/**
+ * Página de listado del Blog — BravaBoards
+ * Ruta: /blog
+ * Layout editorial: primer artículo destacado (grande), resto en filas horizontales.
+ * Todo el contenido viene de Strapi. Sin texto hardcodeado.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import {
+  getGlobalData,
+  getArticles,
+  getStrapiMediaUrl,
+  getStrapiMediaAlt,
+} from '../../lib/strapi';
+import type { GlobalData, Article, UILabels } from '../../types/strapi';
+
+const [rawGlobal, rawArticles] = await Promise.all([
+  getGlobalData(),
+  getArticles(),
+]);
+
+const global   = rawGlobal   as GlobalData | null;
+const articles = rawArticles as Article[]  ?? [];
+const ui: UILabels = global?.ui_labels ?? {};
+
+const faviconUrl = getStrapiMediaUrl(global?.favicon);
+
+const seo = {
+  title:       `${ui.blog_title ?? 'Blog'} — ${global?.site_name ?? ''}`,
+  description: global?.seo_description ?? null,
+  image:       global?.seo_image ?? null,
+  canonical:   null,
+  robots:      global?.seo_robots ?? 'index, follow',
+};
+
+// Formatea "YYYY-MM-DD" → "14 feb. 2026" en español
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      day:   'numeric',
+      month: 'short',
+      year:  'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+// Artículo más reciente → destacado; el resto → filas horizontales
+const [featured, ...rest] = articles;
+
+// Datos del artículo destacado pre-calculados
+const featuredImgUrl = featured ? getStrapiMediaUrl(featured.featured_image) : null;
+const featuredImgAlt = featured ? getStrapiMediaAlt(featured.featured_image, featured.title) : '';
+const featuredDate   = featured ? formatDate(featured.published_date) : '';
+---
+
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={global?.theme ?? null} ui={ui}>
+  <Header global={global} />
+
+  <main id="main-content" class="flex-1">
+
+    <!-- Cabecera de sección -->
+    <div class="bg-navy py-14">
+      <div class="container text-center">
+        <h1 class="text-3xl sm:text-4xl font-bold text-warm-white tracking-tight">
+          {ui.blog_title ?? ''}
+        </h1>
+      </div>
+    </div>
+
+    <section class="py-12">
+      <div class="container max-w-4xl mx-auto">
+
+        {articles.length === 0
+          ? (
+            <!-- Estado vacío -->
+            <div class="text-center py-20">
+              <svg class="w-14 h-14 text-stone-light mx-auto mb-4" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="6" y="10" width="36" height="30" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14 18h20M14 24h14M14 30h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <p class="text-stone">{ui.blog_empty ?? ''}</p>
+            </div>
+          )
+          : (
+            <div class="flex flex-col gap-8">
+
+              <!-- ── Artículo destacado (el más reciente) ── -->
+              {featured && (
+                <article class="group bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-lg hover:border-ocean-light transition-all duration-200">
+                  <!-- Imagen grande -->
+                  <a
+                    href={`/blog/${featured.slug}`}
+                    class="block overflow-hidden bg-sand"
+                    tabindex="-1"
+                    aria-hidden="true"
+                  >
+                    {featuredImgUrl
+                      ? <img
+                          src={featuredImgUrl}
+                          alt={featuredImgAlt}
+                          class="w-full h-64 sm:h-80 md:h-96 object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="eager"
+                          fetchpriority="high"
+                          decoding="async"
+                        />
+                      : <div class="w-full h-64 sm:h-80 md:h-96 flex items-center justify-center bg-linear-to-br from-ocean to-navy">
+                          <svg class="w-16 h-16 text-warm-white/40" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                            <rect x="6" y="10" width="36" height="30" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M14 20h20M14 26h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                    }
+                  </a>
+
+                  <!-- Contenido -->
+                  <div class="p-6 sm:p-8">
+                    {featured.category && (
+                      <span class="text-xs font-semibold text-ocean uppercase tracking-wider">
+                        {featured.category}
+                      </span>
+                    )}
+                    <h2 class="text-2xl sm:text-3xl font-bold text-navy leading-tight mt-2 mb-3 group-hover:text-ocean transition-colors">
+                      <a href={`/blog/${featured.slug}`} class="hover:underline underline-offset-2">
+                        {featured.title}
+                      </a>
+                    </h2>
+                    {featured.excerpt && (
+                      <p class="text-base text-stone leading-relaxed mb-5">
+                        {featured.excerpt}
+                      </p>
+                    )}
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-sand-dark pt-4">
+                      <div class="flex items-center gap-4 text-sm text-stone-light">
+                        {featured.author && (
+                          <span>
+                            {ui.blog_by ?? ''}{' '}
+                            <span class="font-medium text-stone">{featured.author}</span>
+                          </span>
+                        )}
+                        {featuredDate && (
+                          <time datetime={featured.published_date ?? ''}>
+                            {featuredDate}
+                          </time>
+                        )}
+                      </div>
+                      <a
+                        href={`/blog/${featured.slug}`}
+                        class="inline-flex items-center gap-1.5 text-sm font-medium text-ocean hover:text-ocean-light transition-colors"
+                      >
+                        {ui.blog_read_more ?? ''}
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                          <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              )}
+
+              <!-- ── Artículos restantes en filas horizontales ── -->
+              {rest.map(article => {
+                const imgUrl  = getStrapiMediaUrl(article.featured_image);
+                const imgAlt  = getStrapiMediaAlt(article.featured_image, article.title);
+                const dateStr = formatDate(article.published_date);
+                return (
+                  <article class="group flex flex-row bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-md hover:border-ocean-light transition-all duration-200">
+                    <!-- Imagen izquierda -->
+                    <a
+                      href={`/blog/${article.slug}`}
+                      class="block shrink-0 w-36 sm:w-48 md:w-60 overflow-hidden bg-sand"
+                      tabindex="-1"
+                      aria-hidden="true"
+                    >
+                      {imgUrl
+                        ? <img
+                            src={imgUrl}
+                            alt={imgAlt}
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        : <div class="w-full h-full flex items-center justify-center bg-linear-to-br from-ocean to-navy">
+                            <svg class="w-10 h-10 text-warm-white/40" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                              <rect x="6" y="10" width="36" height="30" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                              <path d="M14 20h20M14 26h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                          </div>
+                      }
+                    </a>
+
+                    <!-- Texto derecha -->
+                    <div class="flex flex-col flex-1 p-4 sm:p-5 gap-2 min-w-0">
+                      {article.category && (
+                        <span class="text-xs font-semibold text-ocean uppercase tracking-wider">
+                          {article.category}
+                        </span>
+                      )}
+                      <h2 class="text-base sm:text-lg font-bold text-navy leading-snug group-hover:text-ocean transition-colors">
+                        <a href={`/blog/${article.slug}`} class="hover:underline underline-offset-2">
+                          {article.title}
+                        </a>
+                      </h2>
+                      {article.excerpt && (
+                        <p class="text-sm text-stone leading-relaxed line-clamp-2">
+                          {article.excerpt}
+                        </p>
+                      )}
+                      <div class="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-sand-dark">
+                        <div class="flex items-center gap-3 text-xs text-stone-light">
+                          {article.author && (
+                            <span>{ui.blog_by ?? ''} {article.author}</span>
+                          )}
+                          {dateStr && (
+                            <time datetime={article.published_date ?? ''}>{dateStr}</time>
+                          )}
+                        </div>
+                        <a
+                          href={`/blog/${article.slug}`}
+                          class="inline-flex items-center gap-1 text-xs font-medium text-ocean hover:text-ocean-light transition-colors"
+                        >
+                          {ui.blog_read_more ?? ''}
+                          <svg class="w-3 h-3" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+
+            </div>
+          )
+        }
+
+      </div>
+    </section>
+  </main>
+
+  <Footer global={global} />
+</BaseLayout>

@@ -1,0 +1,379 @@
+---
+/**
+ * Página de artículo individual — BravaBoards
+ * Ruta: /blog/[slug]
+ * Imagen de portada a ancho completo, título, autor, fecha, contenido rich text.
+ * Al final muestra 3 artículos recientes (relacionados).
+ * Sin texto hardcodeado.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import {
+  getGlobalData,
+  getArticles,
+  getStrapiMediaUrl,
+  getStrapiMediaAlt,
+  STRAPI_URL,
+} from '../../lib/strapi';
+import type { GlobalData, Article, UILabels } from '../../types/strapi';
+
+// ── Rutas estáticas: una página por artículo ───────────────────────────────────
+export async function getStaticPaths() {
+  const rawArticles = await getArticles();
+  const articles = rawArticles as Article[];
+  return articles
+    .filter(a => a.slug)
+    .map(a => ({
+      params: { slug: a.slug },
+      props:  { article: a },
+    }));
+}
+
+const { article } = Astro.props as { article: Article };
+
+// ── Fetch paralelo: global + todos los artículos (para relacionados) ───────────
+const [rawGlobal, rawAllArticles] = await Promise.all([
+  getGlobalData(),
+  getArticles({ 'pagination[limit]': '10' }),
+]);
+
+const global      = rawGlobal      as GlobalData | null;
+const allArticles = rawAllArticles as Article[]  ?? [];
+const ui: UILabels = global?.ui_labels ?? {};
+
+// Artículos relacionados: los 3 más recientes excluyendo el actual
+const related = allArticles
+  .filter(a => a.slug !== article.slug)
+  .slice(0, 3);
+
+const faviconUrl    = getStrapiMediaUrl(global?.favicon);
+const coverImgUrl   = getStrapiMediaUrl(article.featured_image);
+const coverImgAlt   = getStrapiMediaAlt(article.featured_image, article.title);
+
+// ── SEO ───────────────────────────────────────────────────────────────────────
+const seo = {
+  title:       article.seo_title ?? `${article.title} — ${global?.site_name ?? ''}`,
+  description: article.seo_description ?? article.excerpt ?? global?.seo_description ?? null,
+  image:       article.featured_image ?? global?.seo_image ?? null,
+  canonical:   null,
+  robots:      global?.seo_robots ?? 'index, follow',
+};
+
+// ── Formato de fecha ──────────────────────────────────────────────────────────
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+const dateStr = formatDate(article.published_date);
+
+// ── Conversor de Strapi Blocks → HTML (server-side) ───────────────────────────
+
+interface StrapiTextNode {
+  type: 'text';
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  code?: boolean;
+}
+
+interface StrapiBlock {
+  type: string;
+  level?: number;
+  format?: string;
+  url?: string;
+  children?: (StrapiTextNode | StrapiBlock)[];
+}
+
+function esc(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function childrenToHtml(children: (StrapiTextNode | StrapiBlock)[]): string {
+  if (!Array.isArray(children)) return '';
+  return children.map(child => {
+    if (child.type === 'text') {
+      let t = esc((child as StrapiTextNode).text ?? '');
+      if ((child as StrapiTextNode).bold)      t = `<strong>${t}</strong>`;
+      if ((child as StrapiTextNode).italic)    t = `<em>${t}</em>`;
+      if ((child as StrapiTextNode).underline) t = `<u>${t}</u>`;
+      if ((child as StrapiTextNode).code)      t = `<code class="bg-sand px-1.5 py-0.5 rounded text-sm font-mono text-navy">${t}</code>`;
+      return t;
+    }
+    if (child.type === 'link') {
+      const href  = (child as StrapiBlock).url ?? '#';
+      const inner = childrenToHtml((child as StrapiBlock).children ?? []);
+      return `<a href="${esc(href)}" class="text-ocean underline underline-offset-2 hover:text-ocean-light" target="_blank" rel="noopener noreferrer">${inner}</a>`;
+    }
+    return '';
+  }).join('');
+}
+
+function blocksToHtml(blocks: unknown): string {
+  if (!Array.isArray(blocks)) return '';
+  return blocks.map((block: StrapiBlock) => {
+    const inner = childrenToHtml(block.children ?? []);
+    switch (block.type) {
+      case 'paragraph':
+        return inner ? `<p>${inner}</p>` : '';
+      case 'heading': {
+        const lvl = Math.min(Math.max(block.level ?? 2, 1), 6);
+        return `<h${lvl}>${inner}</h${lvl}>`;
+      }
+      case 'list': {
+        const tag = block.format === 'ordered' ? 'ol' : 'ul';
+        const items = (block.children ?? []).map((li: StrapiBlock) =>
+          `<li>${childrenToHtml(li.children ?? [])}</li>`
+        ).join('');
+        return `<${tag}>${items}</${tag}>`;
+      }
+      case 'quote':
+        return `<blockquote>${inner}</blockquote>`;
+      case 'code':
+        return `<pre><code>${inner}</code></pre>`;
+      default:
+        return '';
+    }
+  }).join('');
+}
+
+const contentHtml = blocksToHtml(article.content);
+
+// ── JSON-LD Article schema ────────────────────────────────────────────────────
+const jsonLdImageUrl = article.featured_image?.url
+  ? article.featured_image.url.startsWith('http')
+    ? article.featured_image.url
+    : `${STRAPI_URL}${article.featured_image.url}`
+  : null;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: article.title,
+  ...(jsonLdImageUrl           && { image: jsonLdImageUrl }),
+  ...(article.author           && { author: { '@type': 'Person', name: article.author } }),
+  ...(article.published_date   && { datePublished: article.published_date }),
+  ...(article.published_date   && { dateModified:  article.published_date }),
+  ...(article.excerpt          && { description: article.excerpt }),
+};
+---
+
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={global?.theme ?? null} ui={ui}>
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+  <Header global={global} />
+
+  <main id="main-content" class="flex-1">
+
+    <!-- Imagen de portada a ancho completo -->
+    <div class="relative w-full h-64 sm:h-80 md:h-96 bg-navy overflow-hidden">
+      {coverImgUrl
+        ? <img
+            src={coverImgUrl}
+            alt={coverImgAlt}
+            class="absolute inset-0 w-full h-full object-cover"
+            loading="eager"
+            fetchpriority="high"
+          />
+        : <div class="absolute inset-0 bg-linear-to-br from-ocean to-navy"></div>
+      }
+      <!-- Overlay degradado para legibilidad -->
+      <div
+        class="absolute inset-0"
+        style="background: linear-gradient(to top, rgba(13,31,51,0.85) 0%, rgba(13,31,51,0.4) 60%, transparent 100%);"
+        aria-hidden="true"
+      ></div>
+      <!-- Datos sobre la imagen -->
+      <div class="absolute bottom-0 left-0 right-0 container pb-8">
+        {article.category && (
+          <span class="inline-block text-xs font-semibold text-warm-white/80 uppercase tracking-widest mb-3">
+            {article.category}
+          </span>
+        )}
+        <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-warm-white leading-tight max-w-3xl">
+          {article.title}
+        </h1>
+      </div>
+    </div>
+
+    <!-- Meta: autor + fecha + volver -->
+    <div class="border-b border-sand-dark bg-warm-white">
+      <div class="container py-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-4 text-sm text-stone">
+          {article.author && (
+            <span>
+              <span class="text-stone-light">{ui.blog_by ?? ''}</span>{' '}
+              <span class="font-medium text-navy">{article.author}</span>
+            </span>
+          )}
+          {dateStr && (
+            <time datetime={article.published_date ?? ''}>
+              {dateStr}
+            </time>
+          )}
+        </div>
+        <a
+          href="/blog"
+          class="text-sm font-medium text-ocean hover:text-ocean-light transition-colors"
+        >
+          {ui.blog_back ?? ''}
+        </a>
+      </div>
+    </div>
+
+    <!-- Cuerpo del artículo -->
+    <article class="container py-10 max-w-3xl mx-auto">
+      {article.excerpt && (
+        <p class="text-lg text-stone leading-relaxed mb-8 font-medium border-l-4 border-ocean pl-4">
+          {article.excerpt}
+        </p>
+      )}
+
+      <!-- Rich text renderizado server-side -->
+      <div
+        class="prose-blog"
+        set:html={contentHtml}
+      />
+    </article>
+
+    <!-- Artículos relacionados -->
+    {related.length > 0 && (
+      <section class="border-t border-sand-dark bg-sand py-12">
+        <div class="container">
+          <h2 class="text-lg font-semibold text-navy mb-8">
+            {ui.blog_related_title ?? ''}
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {related.map(rel => {
+              const relImgUrl = getStrapiMediaUrl(rel.featured_image);
+              const relImgAlt = getStrapiMediaAlt(rel.featured_image, rel.title);
+              const relDate   = formatDate(rel.published_date);
+              return (
+                <a
+                  href={`/blog/${rel.slug}`}
+                  class="group flex flex-col bg-warm-white border border-sand-dark rounded-xl overflow-hidden hover:shadow-md hover:border-ocean-light transition-all duration-200"
+                >
+                  <!-- Imagen miniatura -->
+                  <div class="overflow-hidden aspect-video bg-sand">
+                    {relImgUrl
+                      ? <img
+                          src={relImgUrl}
+                          alt={relImgAlt}
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      : <div class="w-full h-full flex items-center justify-center bg-linear-to-br from-ocean to-navy">
+                          <svg class="w-8 h-8 text-warm-white/40" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                            <rect x="6" y="10" width="36" height="30" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M14 20h20M14 26h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                          </svg>
+                        </div>
+                    }
+                  </div>
+                  <!-- Info -->
+                  <div class="p-4 flex flex-col gap-1.5 flex-1">
+                    {rel.category && (
+                      <span class="text-xs font-semibold text-ocean uppercase tracking-wider">
+                        {rel.category}
+                      </span>
+                    )}
+                    <h3 class="text-sm font-bold text-navy leading-snug group-hover:text-ocean transition-colors line-clamp-2">
+                      {rel.title}
+                    </h3>
+                    {relDate && (
+                      <time datetime={rel.published_date ?? ''} class="text-xs text-stone-light mt-auto pt-2">
+                        {relDate}
+                      </time>
+                    )}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    )}
+
+  </main>
+
+  <Footer global={global} />
+</BaseLayout>
+
+<style>
+  /*
+   * Estilos para el cuerpo del artículo (rich text de Strapi).
+   * Usamos clases CSS locales en lugar de @tailwindcss/typography
+   * para respetar los colores del proyecto.
+   */
+  .prose-blog :global(p) {
+    margin-bottom: 1.25rem;
+    line-height: 1.75;
+    color: var(--color-stone, #6B7280);
+  }
+  .prose-blog :global(h1),
+  .prose-blog :global(h2),
+  .prose-blog :global(h3),
+  .prose-blog :global(h4),
+  .prose-blog :global(h5),
+  .prose-blog :global(h6) {
+    font-weight: 700;
+    color: var(--color-navy, #0D1F33);
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.25;
+  }
+  .prose-blog :global(h2) { font-size: 1.375rem; }
+  .prose-blog :global(h3) { font-size: 1.125rem; }
+  .prose-blog :global(ul) {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-bottom: 1.25rem;
+    color: var(--color-stone, #6B7280);
+  }
+  .prose-blog :global(ol) {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-bottom: 1.25rem;
+    color: var(--color-stone, #6B7280);
+  }
+  .prose-blog :global(li) {
+    margin-bottom: 0.4rem;
+    line-height: 1.65;
+  }
+  .prose-blog :global(strong) {
+    font-weight: 700;
+    color: var(--color-navy, #0D1F33);
+  }
+  .prose-blog :global(em) {
+    font-style: italic;
+  }
+  .prose-blog :global(blockquote) {
+    border-left: 4px solid var(--color-ocean, #0077B6);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    color: var(--color-stone, #6B7280);
+    font-style: italic;
+  }
+  .prose-blog :global(pre) {
+    background: var(--color-navy, #0D1F33);
+    color: var(--color-warm-white, #FDFAF5);
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin-bottom: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+</style>

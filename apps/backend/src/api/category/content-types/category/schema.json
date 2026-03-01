@@ -34,6 +34,11 @@
         "audios"
       ]
     },
+    "card_image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
     "order": {
       "type": "integer"
     },

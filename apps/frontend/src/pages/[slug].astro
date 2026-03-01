@@ -79,7 +79,7 @@ const searchPlaceholder = ui.search_placeholder ?? '';
 const emptyLabel        = ui.empty_results       ?? '';
 ---
 
-<BaseLayout seo={seo} faviconUrl={faviconUrl}>
+<BaseLayout seo={seo} faviconUrl={faviconUrl} theme={global?.theme ?? null} ui={ui}>
   <Header global={global} />
 
   <main id="main-content">

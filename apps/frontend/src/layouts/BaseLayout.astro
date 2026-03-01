@@ -5,7 +5,9 @@
  * No hay texto hardcodeado visible; solo estructura técnica.
  */
 import '../styles/global.css';
-import type { StrapiMedia } from '../types/strapi';
+import type { StrapiMedia, SiteTheme, UILabels } from '../types/strapi';
+import CartDrawer from '../components/CartDrawer.astro';
+import ProductModal from '../components/ProductModal.astro';
 
 interface SEOProps {
   title?: string | null;
@@ -19,9 +21,26 @@ interface Props {
   seo?: SEOProps;
   lang?: string;
   faviconUrl?: string | null;
+  /** Paleta de colores desde Strapi → Global → theme (JSON).
+   *  Se inyecta como variables CSS :root { --color-ocean: ...; }
+   *  para que cualquier cambio en el CMS se refleje sin tocar código. */
+  theme?: SiteTheme | null;
+  /** Etiquetas de UI para CartDrawer y ProductModal */
+  ui?: UILabels | null;
 }
 
-const { seo, lang = 'es', faviconUrl } = Astro.props;
+const { seo, lang = 'es', faviconUrl, theme, ui } = Astro.props;
+
+// Construye el bloque :root { --color-xxx: yyy; } a partir del JSON de Strapi.
+// Las claves con guión bajo se convierten a guión medio: ocean_light → --color-ocean-light
+const themeCSS = theme
+  ? `:root{${
+      Object.entries(theme)
+        .filter(([, v]) => Boolean(v))
+        .map(([k, v]) => `--color-${k.replace(/_/g, '-')}:${v}`)
+        .join(';')
+    }}`
+  : null;
 
 const STRAPI_URL = import.meta.env.STRAPI_URL ?? 'http://localhost:1337';
 
@@ -44,6 +63,9 @@ const ogImageAlt = seo?.image?.alternativeText ?? seo?.title ?? '';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
+
+    <!-- Tema visual: colores del CMS → CSS custom properties (:root) -->
+    {themeCSS && <Fragment set:html={`<style>${themeCSS}</style>`} />}
 
     <!-- Favicon: dinámico desde Strapi si existe, si no estático del repo -->
     {faviconUrl
@@ -77,9 +99,12 @@ const ogImageAlt = seo?.image?.alternativeText ?? seo?.title ?? '';
     {seo?.title       && <meta name="twitter:title"       content={seo.title} />}
     {seo?.description && <meta name="twitter:description" content={seo.description} />}
     {ogImageUrl       && <meta name="twitter:image"       content={ogImageUrl} />}
+    <slot name="head" />
   </head>
 
-  <body>
+  <body class="min-h-screen flex flex-col">
     <slot />
+    <CartDrawer ui={ui ?? {}} />
+    <ProductModal ui={ui ?? {}} />
   </body>
 </html>
